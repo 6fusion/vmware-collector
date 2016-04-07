@@ -1,0 +1,68 @@
+<% content_for :script do %>
+$( document ).ready(function() {
+  initNetworkToggles();
+  <% if @networking.vcenter? %>
+    <%= raw(%Q|$(':submit').click(function(e){
+                 vcenterToStaticWarning(e, #{@networking.to_json});
+                 $('#validatingNetworkConfigModal').modal('show');  });
+              |)
+    %>
+  <% else %>
+    $(':submit').click(function(e){ $('#validatingNetworkConfigModal').modal('show'); });
+  <% end %>
+});
+<% end %>
+
+
+<%= form_for @meter_configuration_document, url: wizard_path, :method => :put do |f| %>
+
+  <div>
+    <%= render partial: 'shared/errors', locals: { errored_document: @meter_configuration_document } %>
+    <%= render partial: 'shared/errors', locals: { errored_document: @networking } %>
+    <%= render partial: 'shared/errors', locals: { errored_document: @ntp } %>
+  </div>
+
+  <%= render partial: 'network_fields', locals: { networking: @networking } %>
+
+  <% advanced_collapsed = (@meter_configuration_document.uc6_proxy_host.blank? and @ntp.coreos?) %>
+  <a data-toggle="collapse" data-target="#proxy_options" href="#"
+     class="expander <%= advanced_collapsed ? 'collapsed' : 'expanded' %>">Advanced Options</a>
+  <div class="collapse <%= 'in' unless advanced_collapsed %>" id="proxy_options">
+    <%= render partial: 'ntp_fields', locals: { ntp: @ntp } %>
+    <%= render partial: 'proxy_fields', locals: { f: f } %>
+  </div>
+
+  <div class="actions text-right">
+    <%= f.submit "Continue", class: 'btn btn-success busy-trigger' %>
+  </div>
+
+
+<div class="modal fade" id="vcenterToStaticWarning" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        Changing the source of network configuration
+      </div>
+      <div class="modal-body">
+        <p>You have configured the meter's network settings through both vCenter and the registration wizard.
+        Please note that any changes made here will be reset back to the configuration provided by
+        vCenter on the next reboot of the meter. To maintain the changes made here,
+          you must remove the configuration settings assigned to the meter in vCenter.
+        </p>
+        <p>To revert to using the settings provided by vCenter, select <strong>Cancel</strong> and chose the <strong>Automatic</strong> tab
+          from this page, then <strong>Continue</strong>.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <div class="actions text-center">
+          <a href="#" class="btn btn-success busy-trigger" id="understoodButton">Understood</a>
+          <a href="#" class="btn btn-default busy-trigger" data-dismiss="modal">Cancel</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% end %>
+
+<%= render partial: 'validating_network_modal' %>

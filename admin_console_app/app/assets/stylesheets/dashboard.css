@@ -1,0 +1,106 @@
+/*
+  Place all the styles related to the matching controller here.
+  They will automatically be included in application.css.
+*/
+
+.dashboard-wrapper {
+  margin-right: auto;
+  margin-left: auto;
+  position: relative;
+  margin-top: 50px;
+  padding: 20px;
+  background: #ffffff;
+  -webkit-border-radius: 10px;
+  -moz-border-radius: 10px;
+  border-radius: 10px;
+  border: 5px solid #e4e6ea;
+  -webkit-box-shadow: 0 0 1px 1px #8d95a8;
+  -moz-box-shadow: 0 0 1px 1px #8d95a8;
+  box-shadow: 0 0 1px 1px #8d95a8;
+  color: #5a6275;
+}
+
+/* Make our nav-pills 6fusiony green */
+.nav-pills > li > a {
+  background-color: #f0f0f0;
+  color: black; }
+
+.nav-pills > li > a:hover {
+  background-color: #dddddd;
+  color: black; }
+
+.nav-pills > li.active > a,
+.nav-pills > li.active > a:focus{
+  background-color: #9cbf4a; }
+
+.nav-pills > li.active > a:hover {
+  background-color: #99cc33; }
+
+
+#log_level_select a, #log_level_select button {
+  text-transform: capitalize;
+}
+
+.nav-pills {
+  padding-right: 0;
+    margin-right: 0;
+}
+
+/* Individual status widgets styling */
+.dashboard-panel .panel-heading {
+  padding: 5px 10px;
+  background-color: transparent;
+  color: gray;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+table {
+  table-layout: fixed; }
+td{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; }
+td > input {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  width: 100%;
+  background: transparent;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; }
+
+.upgrade-progress {
+  height: 12px;
+  line-height: 12px;
+  font-size: 10px;
+  margin-bottom: 8px; }
+
+.upgrade-progress span {
+    position: absolute;
+    display: block;
+    width: 100%;
+    margin-left: -20px;
+    color: white;
+ }
+
+.fontFlake{
+  position:absolute;
+  top:-50px;
+  left:0px;
+  z-index:-1;
+  position:block;
+}
+
+.panel-title {
+  text-transform: none;
+  font-size: 1em;
+}
+
+#downloadProgressModal .panel-body {
+  border-left: thin solid #ddd;
+  border-right: thin solid #ddd;
+  border-bottom: thin solid #ddd;
+}

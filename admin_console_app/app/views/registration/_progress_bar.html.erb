@@ -1,0 +1,8 @@
+<div class="progress">
+  <div class="progress-bar progress-bar-custom" role="progressbar"
+       aria-valuenow="<%= percent_complete %>"
+       aria-valuemin="0" aria-valuemax="100"
+       style="width: <%=percent_complete %>%; min-width: 20%;">
+    <%= percent_complete.eql?(100) ? 'Registration Complete' : "Progress #{percent_complete}%"%>
+  </div>
+</div>

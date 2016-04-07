@@ -1,0 +1,57 @@
+USEFUL COMMANDS
+  Run All Feature Specs
+      rake test:integration METER_ENV=test
+
+
+FEATURE SPECS
+  Found under spec/features
+  These are simple integration specs testing core functionality of each componenet.
+
+  Uses MiniTest (not RSpec)
+  ** Beware of differences (notably before(:all) variations do not work with MiniTest) **
+
+  Commands:
+     Run All Specs:
+       rake test:integration METER_ENV=test
+
+     The task is found under: spec/tasks/test.rake
+
+  Configuration:
+    use config/vsphere.yml
+    set the "test:" block
+
+    should set to:
+      host: 'vcn16.dev.ral.6fusion.com'
+      log_level: debug # For Vsphere Output
+
+  Notes:
+    VSphere Setup Dependency:
+      The tests are dependent on vcn16.dev.ral.6fusion.com for now.
+      There doesn't seem to be a way to provision data centers and hosts,
+      So, we need to manually create this data center.
+
+    Test Setup:
+      VMs are created using: create_vm(<name>,<data_center>)
+      And destroyed using: destroy_vm(<name>,<data_center>)
+      These methods are found in spec/support/vsphere_helpers.rb
+
+      ** Beware **
+      before(:all), before(:suite) do NOT work as expected
+      All MiniTest before block variations run before EACH test
+
+      So, must combine tests into one
+      Or, can use begin / rescue within individual test for unique setup/teardown
+      Most of the features tests combine expectations into one block to avoid hitting VSphere
+      for each individual expectation.
+
+    DatabaseCleaner
+      Be sure to run DatabaseCleaner.clean before and after each spec
+
+
+
+
+
+
+
+
+

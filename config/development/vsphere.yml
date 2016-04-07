@@ -1,0 +1,13 @@
+development:
+  host: 192.168.117.9
+  user: root
+  password: vmware
+  ignore_ssl_errors: true
+  log_level: debug
+
+test:
+  host:
+  user:
+  password:
+  ignore_ssl_errors: true
+  log_level: info

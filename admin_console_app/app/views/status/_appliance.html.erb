@@ -1,0 +1,152 @@
+<% content_for :script do %>
+
+  $(document).ready(function(){
+    refreshApplianceStats();
+
+    $('#reboot_menu_link').click(function(e){
+      e.preventDefault();
+      $('#confirmRebootModal').modal('show'); });
+
+    $('#shutdown_menu_link').click(function(e){
+      e.preventDefault();
+      $('#confirmShutdownModal').modal('show'); });
+
+
+    $('#shutdown_button').click(function(e){
+      $('#confirmShutdownModal').modal('hide');
+      $('#shuttingDownModal').modal('show');
+      $.ajax({ type: 'PUT',
+               url: $('#shutdown_menu_link').attr('href') });
+      // This could be more sophisticated; atm just eye candy, since it doesn't do any confirmation
+      setTimeout(function() {
+        $('body').replaceWith('<body><h5>Meter should be powered off</h5></body>');}, 15000 ); });
+
+    $('#reboot_button').click(function(e){
+      $('#confirmRebootModal').modal('hide');
+      $('#rebootingModal').modal('show');
+      $('#rebootingModal .progress-bar').addClass('active');
+      $.ajax({ type: 'PUT',
+               url: $('#reboot_menu_link').attr('href') })
+            .always(function(){ loopTillRebootFinished(); }) });
+
+    setInterval(function(){
+      refreshApplianceStats();}, 30000);
+  });
+
+<% end %>
+
+
+
+<div class="row">
+
+  <div class="panel panel-default dashboard-panel">
+
+    <div class="panel-heading">
+      <div style="display:inline">Appliance</div>
+
+      <div class="dropdown" style="float:right;">
+        <a id="dropdownMenu1" class="btn dropdown-toggle" data-toggle="dropdown" style="padding:0; margin-top: -5px;">
+          <i class="fa fa-bars"></i>
+        </a>
+
+        <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1" style="text-transform: none">
+          <li role="presentation">
+            <%= link_to 'Logout', '/logout', role: 'menuitem', class: 'put-link', id: 'logoff_menu_link',
+                'data-callback': "window.location.href = '#{login_url}'" %>
+          </li>
+          <li role="presentation">
+            <%= link_to 'Reboot Appliance', 'service/reboot', role: 'menuitem', id: 'reboot_menu_link' %>
+          </li>
+          <li role="presentation">
+            <%= link_to 'Shutdown Appliance', 'service/poweroff', role: 'menuitem', id: 'shutdown_menu_link' %>
+          </li>
+          <li role="presentation">
+            <a role="menuitem" tabindex="-1" href="registration">Re-register</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="clear:both"></div>
+    <div class="panel-body" style="padding: 0px 10px 5px 10px">
+      <!--
+      <div class="row">
+          <div class="col-xs-6">
+            Consumption
+          </div>
+          <div class="col-xs-6" id="appliance_consumption"></div>
+      </div>
+      -->
+      <div class="row">
+        <div class="col-xs-6">
+          Load
+        </div>
+        <div class="col-xs-6" id="appliance_load"></div>
+      </div>
+      <div class="row">
+        <div class="col-xs-6">
+          Uptime
+        </div>
+        <div class="col-xs-6" id="appliance_uptime"></div>
+      </div>
+      <div class="row">
+        <div class="col-xs-6">
+          Disk Usage
+        </div>
+        <div class="col-xs-6" id="appliance_disk_percent_used"></div>
+      </div>
+
+      <%= render partial: 'status/upgrade' if DockerHubHelper::update_available? %>
+    </div>
+
+  </div>
+</div>
+
+<div id="confirmRebootModal" class="modal fade" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Please confirm request to reboot</h4>
+      </div>
+      <div class="modal-body text-center">
+        <button id="reboot_button" type="button" class="btn btn-success">Reboot</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="confirmShutdownModal" class="modal fade" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Please confirm request to power-off the appliance</h4>
+      </div>
+      <div class="modal-body text-center">
+        <button id="shutdown_button" type="button" class="btn btn-success">Shutdown</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<div id="shuttingDownModal" class="modal fade" role="dialog"
+     data-keyboard="false" data-backdrop="static" >
+
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 class="modal-title">Shutting Down</h4>
+      </div>
+      <div class="modal-body">
+        <div class="progress">
+          <div class="progress-bar progress-bar-striped" role="progressbar" style="width:100%">The meter appliance is shutting down.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

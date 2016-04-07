@@ -1,0 +1,22 @@
+/*
+  Place all the styles related to the matching controller here.
+  They will automatically be included in application.css.
+*/
+.messages {
+  background-color: black;
+  color: white;
+  border: 1px solid #dddddd;
+  padding:10px;
+  height: 500px;
+  overflow-x:visible;
+  overflow-y: scroll;
+  -webkit-border-radius: 5px;
+  -moz-border-radius: 5px;
+  border-radius: 5px;
+  margin-bottom:10px;
+  font-size:14px;
+}
+
+.dropdown-menu {
+  min-width: 0px;
+}

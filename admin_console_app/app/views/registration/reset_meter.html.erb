@@ -1,0 +1,42 @@
+<div>
+  <p>It looks like this meter has already been registered. Would you like to start by resetting the meter to its initial, pre-configured state?</p>
+
+  <% if @readings_count > 1 %>
+  <p class="bg-warning" style="padding: 5px">
+    You currently have
+    <%= number_to_human(@readings_count, units: {unit: "machine reading" }) %>s
+    that have not been submitted.
+    These will be discarded if you choose to reset the meter.
+  </p>
+  <% end %>
+</div>
+
+<%= form_for :reset_meter, url: wizard_path, :method => :put, style: 'display:none' do |f| %>
+  <%= f.hidden_field :selection, value: false %>
+<% end %>
+<br>
+<div class="actions text-center">
+  <a href="javascript:lastChanceBeforeReset()" class='btn btn-warning'>Yes, reset the meter</a>
+  <br><br>
+  <a href="javascript:continueWithReset(false)" class='btn btn-success busy-trigger'>No, I want to start from my existing configuration</a>
+</div>
+
+
+<div class="modal fade" id="confirm-reset" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        Please confirm
+      </div>
+      <div class="modal-body">
+        Please confirm your selection to reset the meter, including all configuration, inventory, and readings.
+      </div>
+      <div class="modal-footer">
+        <div class="actions text-center">
+          <a href="javascript:continueWithReset(true)" class='btn btn-warning busy-trigger'>Reset</a>
+          <a href="javascript:continueWithReset(false)" class='btn btn-success busy-trigger'>Cancel</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

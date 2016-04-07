@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RegistrationApp</title>
+  <%= stylesheet_link_tag    'application', media: 'all', 'data-turbolinks-track' => true %>
+  <%#= javascript_include_tag 'application', 'data-turbolinks-track' => true %>
+  <%= csrf_meta_tags %>
+  <%= yield :head %>
+  <script>
+    <%= yield :script %>
+  </script>
+</head>
+<body style="background-color: #c7cbd4">
+
+<div>
+  <div class="text-center">
+    <%= image_tag('logo.png', size: "106x45") %><br>
+  </div>
+  <%= yield %>
+</div>
+
+</body>
+</html>

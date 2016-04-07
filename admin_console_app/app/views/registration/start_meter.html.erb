@@ -1,0 +1,8 @@
+<%= render partial: 'progress_bar', locals: { percent_complete: 100 } %>
+
+<br>
+<%= form_for @meter_configuration_document, url: wizard_path, :method => :put do |f| %>
+  <div class="actions text-center">
+    <%= f.submit 'Start Meter!', class: 'btn btn-success busy-trigger' %>
+  </div>
+<% end %>

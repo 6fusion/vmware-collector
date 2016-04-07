@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Meter Dashboard</title>
+  <%= stylesheet_link_tag    'application', media: 'all', 'data-turbolinks-track' => true %>
+  <%= javascript_include_tag 'application', 'data-turbolinks-track' => true %>
+  <%= csrf_meta_tags %>
+  <%= yield :head %>
+  <script>
+    <%= yield :script %>
+  </script>
+</head>
+<body style="background-color: #c7cbd4">
+
+  <div class="container">
+    <div class="row">
+      <div class="col-sm-1"></div>
+
+      <div class="dashboard-wrapper col-xs-12 col-sm-10">
+        <div class="text-center">
+          <a href="https://console.6fusion.com" tabindex="-1"><%= image_tag 'logo.png', size: "106x45", style: 'margin-bottom: 10px' %></a>
+        </div>
+        <div class="text-center" style="margin-top: 20px">
+          <h4>Meter Administration Console</h4>
+        </div>
+
+        <%= yield %>
+      </div>
+
+      <div class="col-sm-1"></div>
+    </div>
+  </div>
+
+  <%= render 'shared/reboot' %>
+
+</body>
+</html>

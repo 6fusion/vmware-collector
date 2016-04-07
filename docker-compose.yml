@@ -1,0 +1,9 @@
+production:
+  build: .
+  dockerfile: config/production/Dockerfile
+staging:
+  build: .
+  dockerfile: config/staging/Dockerfile
+development:
+  build: .
+  dockerfile: config/development/Dockerfile

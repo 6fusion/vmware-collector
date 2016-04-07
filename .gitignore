@@ -1,0 +1,16 @@
+.bundle
+log/*.log
+tmp/
+*~
+.DS_Store
+*.swp
+rspec.failures
+.yardoc
+*.sublime-workspace
+.idea
+test/VCenter_config/scripts/psshTestVmIPs.txt
+.vagrant/
+*/bundle/
+admin_console_app/public/assets
+oem/core
+oem/core.pub

@@ -1,0 +1,22 @@
+<% content_for :script do %>
+
+  $(function(){
+    $('#upgrade_link_row').addClass('btn-toolbar');
+    $('#update_available_link').addClass('btn btn-primary')
+    $('#update_available_link').css('margin-left', '40px')
+    $('#upgrade_link_row div').append('<button type="submit" class="btn btn-success disabled pull-right">Continue</button>');
+  });
+<% end %>
+
+<div>
+  <p>A new version of the VMware meter is available for download.</p>
+  <p>Current version: <strong><%= DockerHelper::current_version %></strong></p>
+  <p>Latest version: <strong><%= DockerHubHelper::latest_version %></strong></p>
+
+  <%= form_for @meter_configuration_document, url: wizard_path, :method => :put do |f| %>
+    <%= render partial: 'status/upgrade' %>
+  <% end %>
+
+  <%= link_to 'Skip', next_wizard_path, style: 'color: #dedede' if Rails.env.match(/development|testing|staging/) %>
+
+</div>

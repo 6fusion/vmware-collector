@@ -1,0 +1,286 @@
+/*
+ * This is a manifest file that'll be compiled into application.css, which will include all the files
+ * listed below.
+ *
+ * Any CSS and SCSS file within this directory, lib/assets/stylesheets, vendor/assets/stylesheets,
+ * or any plugin's vendor/assets/stylesheets directory can be referenced here using a relative path.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the bottom of the
+ * compiled file so the styles you add here take precedence over styles defined in any styles
+ * defined in the other CSS/SCSS files in this directory. It is generally better to create a new
+ * file per style scope.
+ *
+ *= require jquery-ui
+ *= require chosen
+ *= require_self
+ *= require_tree .
+ */
+
+// "bootstrap-sprockets" must be imported before "bootstrap" and "bootstrap/variables"
+@import "bootstrap-sprockets";
+@import "bootstrap";
+@import "font-awesome-sprockets";
+@import "font-awesome";
+
+@font-face {
+  font-family: "Open Sans";
+  src: asset-url('OpenSans-regular.woff') format('woff');}
+@font-face {
+  font-family: "Open Sans";
+  font-weight: bold;
+  src: asset-url('OpenSans-700.woff') format('woff');}
+
+.busy * {
+  cursor: wait !important; }
+
+body {
+  font-family: "Open Sans"; }
+
+fieldset {
+  margin-top: 1em; }
+
+.wrapper {
+  margin-right: auto;
+  margin-left: auto;
+  width: 480px;
+  position: relative;
+  margin-top: 50px;
+  padding: 20px 20px;
+  background: #ffffff;
+  -webkit-border-radius: 10px;
+  -moz-border-radius: 10px;
+  border-radius: 10px;
+  border: 5px solid #e4e6ea;
+  -webkit-box-shadow: 0 0 1px 1px #8d95a8;
+  -moz-box-shadow: 0 0 1px 1px #8d95a8;
+  box-shadow: 0 0 1px 1px #8d95a8;
+  color: #5a6275; }
+
+.field_with_errors input{
+  border-color: red; }
+
+.nopadding {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+
+.success-check {
+  height: 15px;
+  width: 15px;
+  margin-left: 4px;
+  margin-bottom: -1px;
+  display: inline-block; }
+
+.animated {
+  animation-timing-function: steps(28);
+  -webkit-animation-timing-function: steps(28);
+  -webkit-animation-duration: 1.6s;
+  animation-duration: 1.6s;  }
+
+@-webkit-keyframes play {
+  from { background-position: 420px; }
+  to { background-position: 0px; } }
+@keyframes play {
+  from { background-position: 420px; }
+  to { background-position: 0px; }  }
+
+.play {
+  background-image: image-url('checkmark.png');
+  -webkit-animation-name: play;
+  animation-name: play;  }
+
+
+a, a:hover{
+    color: #9cbd4a; }
+
+
+
+
+
+@-webkit-keyframes opacity {
+    0% { opacity: 1; }
+    100% { opacity: 0; } }
+@keyframes opacity {
+    0% { opacity: 1; }
+    100% { opacity: 0; } }
+
+.loadingEllipsis {
+    text-align: center; 
+    margin: 100px 0 0 0; }
+
+.loadingEllipsis span {
+    -webkit-animation-name: opacity;
+    -webkit-animation-duration: 1s;
+    -webkit-animation-iteration-count: infinite;
+    
+    animation-name: opacity;
+    animation-duration: 1s;
+    animation-iteration-count: infinite;}
+.loadingEllipsis span:nth-child(1) {
+    -webkit-animation-delay: 100ms;
+    animation-delay: 100ms;}
+.loadingEllipsis span:nth-child(2) {
+    -webkit-animation-delay: 300ms;
+    animation-delay: 300ms;}
+.loadingEllipsis span:nth-child(3) {
+    -webkit-animation-delay: 500ms;
+    animation-delay: 500ms; }
+
+
+.top-buffer { margin-top: 10px; }
+
+
+/* CSS to make Chosen select with search look like Bootstrap */
+select.form-control + .chosen-container.chosen-container-single .chosen-single {
+    display: block;
+    width: 100%;
+    height: 34px;
+    padding: 6px 12px;
+    font-size: 14px;
+    line-height: 1.428571429;
+    color: #555;
+    vertical-align: middle;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,0.075);
+    box-shadow: inset 0 1px 1px rgba(0,0,0,0.075);
+    -webkit-transition: border-color ease-in-out .15s,box-shadow ease-in-out .15s;
+    transition: border-color ease-in-out .15s,box-shadow ease-in-out .15s;
+    background-image:none;
+}
+
+select.form-control + .chosen-container.chosen-container-single .chosen-single div {
+    top:4px;
+    color:#000;
+}
+
+select.form-control + .chosen-container .chosen-drop {
+    background-color: #FFF;
+    border: 1px solid #CCC;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    -webkit-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
+    background-clip: padding-box;
+    margin: 2px 0 0;
+
+}
+
+select.form-control + .chosen-container .chosen-search input[type=text] {
+    display: block;
+    width: 100%;
+    height: 34px;
+    padding: 6px 12px;
+    font-size: 14px;
+    line-height: 1.428571429;
+    color: #555;
+    vertical-align: middle;
+    background-color: #FFF;
+    border: 1px solid #CCC;
+    border-radius: 4px;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+    -webkit-transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+    transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+    background-image:none;
+}
+
+select.form-control + .chosen-container .chosen-results {
+    margin: 2px 0 0;
+    padding: 5px 0;
+    font-size: 14px;
+    list-style: none;
+    background-color: #fff;
+    margin-bottom: 5px;
+}
+
+select.form-control + .chosen-container .chosen-results li , 
+select.form-control + .chosen-container .chosen-results li.active-result {
+    display: block;
+    padding: 3px 20px;
+    clear: both;
+    font-weight: normal;
+    line-height: 1.428571429;
+    color: #333;
+    white-space: nowrap;
+    background-image:none;
+}
+select.form-control + .chosen-container .chosen-results li:hover, 
+select.form-control + .chosen-container .chosen-results li.active-result:hover,
+select.form-control + .chosen-container .chosen-results li.highlighted
+{
+    color: #FFF;
+    text-decoration: none;
+    background-color: #428BCA;
+    background-image:none;
+}
+
+select.form-control + .chosen-container-multi .chosen-choices {
+    display: block;
+    width: 100%;
+    min-height: 34px;
+    padding: 6px;
+    font-size: 14px;
+    line-height: 1.428571429;
+    color: #555;
+    vertical-align: middle;
+    background-color: #FFF;
+    border: 1px solid #CCC;
+    border-radius: 4px;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+    -webkit-transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+    transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+    background-image:none;
+}
+
+select.form-control + .chosen-container-multi .chosen-choices li.search-field input[type="text"] {
+    height:auto;
+    padding:5px 0;
+}
+
+select.form-control + .chosen-container-multi .chosen-choices li.search-choice {
+
+    background-image: none;
+    padding: 3px 24px 3px 5px;
+    margin: 0 6px 0 0;
+    font-size: 14px;
+    font-weight: normal;
+    line-height: 1.428571429;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    color: #333;
+    background-color: #FFF;
+    border-color: #CCC;
+}
+
+select.form-control + .chosen-container-multi .chosen-choices li.search-choice .search-choice-close {
+    top:8px;
+    right:6px;
+}
+
+select.form-control + .chosen-container-multi.chosen-container-active .chosen-choices,
+select.form-control + .chosen-container.chosen-container-single.chosen-container-active .chosen-single,
+select.form-control + .chosen-container .chosen-search input[type=text]:focus{
+    border-color: #66AFE9;
+    outline: 0;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),0 0 8px rgba(102, 175, 233, 0.6);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),0 0 8px rgba(102, 175, 233, 0.6);
+}
+
+select.form-control + .chosen-container-multi .chosen-results li.result-selected{
+    display: list-item;
+    color: #ccc;
+    cursor: default;
+    background-color: white;
+}
+
+.modal-header{
+  font-weight: 700
+}

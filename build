@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# TODO figure out how to compile assets without mongo
+# Note: the gsub error generated at the start of a run of this script is from 
+#  parts of the app laoding up and expecting docker, with meter images, to be available
+#  It's safely ignorable
+
+mongo_version="3.0.9"
+meter_version="0.9.29"
+docker_machine_version="v0.5.0"
+
+set -e
+
+install_dir="/usr/local/bin"   # Used if we need to install docker tools
+
+# docker compose assumes the current directory is the "project name" and prepends it to the image name
+project_name=$(basename $PWD | tr -cd '[[:alnum:]]')
+
+namespace=6fusion
+
+
+# Everything between here and the Darwin test below is intened to get Macs up and going with docker tools
+function docker_machine_available(){
+    which docker-machine; }
+
+function docker_compose_available(){
+    which docker-compose; }
+
+function virtualbox_available(){
+    which VBoxManage; }
+
+function install_docker_machine(){
+    if [ -w $install_dir ]; then
+        echo "You need docker machine to be able to build containers on a OSX. Installing ${docker_machine_version} to /usr/local/bin"
+        curl -L https://github.com/docker/machine/releases/download/${docker_machine_version}/docker-machine_darwin-amd64.zip | gunzip -c > ${install_dir}/docker-machine
+        chmod 755 ${install_dir}/docker-machine
+    else
+        printf "Can't write to /usr/local/bin :(\nVisit https://docs.docker.com/machine/install-machine/ to get going with docker-machine.\nOr just run this script in a linux environment."
+    fi; }
+
+function install_docker_compose(){
+    if [ -w $install_dir ]; then
+        echo "You need docker compose to be able to build containers. Installing the latest docker-compose to /usr/local/bin"
+        curl -L https://get.docker.com/builds/Darwin/x86_64/docker-latest -O ${install_dir}/docker-compose
+        chmod 755 ${install_dir}/docker-compose
+    else
+        printf "Can't write to /usr/local/bin :(\nVisit https://docs.docker.com/machine/install-machine/ to get going with docker-machine.\nOr just run this script in a linux environment."
+    fi; }
+
+function setup_tools(){
+    if [ ! virtualbox_available ]; then
+        echo "You'll need to install VirtualBox to build docker images on Mac. See https://www.virtualbox.org/wiki/Downloads"
+        exit 1
+    fi
+    if [ ! docker_machine_available && ! docker_compose_available ]; then
+        continue='n'
+        printf "You need docker-machine and docker-compose installed to build containers."
+        printf "You can visit http://docs.docker.com/engine/installation/mac/#installation to install a suite of docker tools, or you can let this script attempt to install docker-machine and docker-compose for you."
+        printf "Attempt to have script install (y/n)? "
+        read continue
+        [ continue != 'y' ] && exit 0
+    fi
+
+    [ docker_machine_available ] || install_docker_machine
+    [ docker_compose_available ] || install_docker_compose; }
+
+
+function setup_docker_machine_env(){
+    if docker-machine ls | grep -q docker-compose; then
+        if ! docker-machine ls | grep -Eq "docker-compose.+Running"; then
+            echo "Enabling docker-compose"
+            docker-machine start docker-compose
+        fi
+    else
+        echo "Creating docker-compose VM in VirtualBox"
+        docker-machine create --driver virtualbox docker-compose
+    fi
+    eval "$(docker-machine env docker-compose)"; }
+
+function on_mac(){
+    [ `uname` = 'Darwin' ]; }
+
+
+function update_mongo(){
+    sed -i '' -E 's|mongo:[^ ]+|mongo:'"$mongo_version"'|' config/${1}/cloud-config.yml; }
+
+function precompile_assets(){
+    bundle exec rake -f admin_console_app/Rakefile assets:clobber
+    bundle exec rake -f admin_console_app/Rakefile assets:precompile; }
+
+function latest_mongo(){
+    curl -sL https://hub.docker.com/_/mongo/ | sed 's/\\n/\n/g'  |  grep -E '<code>latest</code>' | tail -n1 | awk -F '[<>]' '{print $7}'; }
+
+on_mac && setup_docker_machine_env
+
+
+# Here's where the build stuff begins
+while getopts "v:" opt; do
+    case "$opt" in
+        v) meter_version=$OPTARG; shift; shift ;;
+    esac
+done
+
+[ $mongo_version = $(latest_mongo) ] || echo "**** There is a newer version of the mongo container available ($(latest_mongo)). You should consider upgrading ****"
+
+bundle check >/dev/null || bundle install  # Install gems, if necessary
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+for var in ${@:-development}; do
+    case "$var" in
+        production)
+            if [ -z "$meter_version" ]; then
+                echo "You must supply a meter version for production builds"
+                exit 1
+            fi
+            if [ "$branch" != 'master' ]; then
+                printf "You are the $branch branch, not master. Continue building from $branch (y/n) "
+                read continue
+                [ $continue == 'y' ] || exit 0
+            fi
+
+            precompile_assets
+            update_mongo production
+
+            # Update meter version in cloud config
+            sed -i '' -E 's|6fusion/vmware-meter:[^ ]+|6fusion/vmware-meter:'"$meter_version"'|' config/production/cloud-config.yml
+            grep -q $meter_version config/production/cloud-config.yml  # sanity check to make sure sed worked
+            docker-compose build production
+
+            # make sure on master?
+            set +e
+            git commit -m "Updating production cloud-config with meter version ${meter_version}"
+            set -e
+            git tag -f ${meter_version}
+            # git push tags
+
+            echo "Tagging with $namespace/vmware-meter:${meter_version}"
+            docker tag -f ${project_name}_production $namespace/vmware-meter:${meter_version}
+            echo
+            docker images
+            echo
+            echo "Pushing to repository"
+            docker push ${namespace}/vmware-meter:${meter_version}
+            docker rmi ${project_name}_production
+            ;;
+
+        staging)
+            if [ "$branch" != 'staging' ]; then
+                printf "You are the $branch branch, not staging. Continue building from $branch (y/n) "
+                read continue
+                [ $continue == 'y' ] || exit 0
+            fi
+            precompile_assets
+            update_mongo staging
+
+            docker-compose build staging
+
+            echo "Tagging with $namespace/vmware-meter:beta"
+            docker tag -f ${project_name}_staging $namespace/vmware-meter:beta
+            echo
+            docker images
+            echo
+            echo "Pushing to repository"
+            docker push 6fusion/vmware-meter:beta
+            docker rmi ${project_name}_staging
+            ;;
+
+        development)
+            echo "Building from the $branch branch"
+
+            docker-compose build development
+
+            docker tag -f ${project_name}_development $namespace/vmware-meter:alpha
+            docker rmi ${project_name}_development
+            ;;
+        cleanup)
+            echo "Attempting to delete all untagged images"
+            docker images | grep none | awk '{print $3}' | xargs docker rmi
+    esac
+done

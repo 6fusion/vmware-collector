@@ -1,0 +1,93 @@
+/*
+  Place all the styles related to the matching controller here.
+  They will automatically be included in application.css.
+*/
+
+.btn-success,
+.btn-success:focus {
+  background-color: #669933; }
+
+.btn-success:hover{
+  background-color: #77aa33; }
+
+#uc6_sync_steps ul {
+    list-style: none;
+    padding: 0; }
+
+li i.fa-check-circle-o {
+     color: #9cbd4a; }
+
+#uc6_sync_steps .response {
+  margin-left: 8%; }
+
+#uc6_sync_steps .step_error {
+  margin-left: 8%;
+  color: red; }
+
+#uc6_sync_steps li.skip {
+  color: #d3d3d3; }
+
+.progress-bar-custom {
+  background: #77aa33;
+}
+
+#networkConfig {
+  border: thin solid #dddddd;
+  border-radius: 8px;
+  padding: 0px 5px;
+  position: relative;
+  margin-bottom: 1em; }
+
+#networkToggleLegend {
+  z-index: 10;
+  display: inline-block;
+  background-color: white;
+  margin: -0.5em 0px 10px 30%;
+}
+
+a.expanded:before {
+  font-family: monospace;
+  content: '-'; }
+a.collapsed:before {
+  font-family: monospace;
+  content: '+'; }
+a.expanded, a.collapsed{
+  text-decoration: none;
+  color: #669933; }
+
+#networkConfig a:link {
+  color: #669933;
+  text-decoration: none; }
+#networkConfig a:visited {
+  color: #669933;
+  text-decoration: none; }
+#networkConfig a:hover {
+    color: #669933;
+    text-decoration: none; }
+#networkConfig a:active {
+  color: #669933;
+  text-decoration: none; }
+
+
+#networkToggleLegend a {
+  font-size: 0.65em;
+  display:table-cell;
+  margin: 0;
+  padding-left: 5px;
+  padding-right: 5px;
+  border: thin solid #dddddd; }
+
+#networkToggleLegend a.selected {
+  background-color: #dddddd;
+}
+
+#networkToggleLegend a.leftToggle {
+  border-top-left-radius:    5px;
+  border-bottom-left-radius: 5px; }
+#networkToggleLegend a.rightToggle {
+  border-top-right-radius:    5px;
+  border-bottom-right-radius: 5px; }
+
+#networkToggle div {
+  width: 100%; }
+

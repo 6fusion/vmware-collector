@@ -1,0 +1,26 @@
+#!/usr/bin/env ruby
+
+cloud_config = 'config/production/cloud-config.yml'
+#release_module = 'rn'
+
+latest_tag = `git describe --tags`.chomp
+
+if ( md = latest_tag.match(/(.+)-\d+-\w{8}$/) )
+  latest_tag = md[1]
+end
+
+
+if ( File.open(cloud_config).grep(/:#{latest_tag}/).empty? )
+  puts "*************************************************************************"
+  puts "The tag '#{latest_tag}' is not present in #{cloud_config}. "
+  puts "*************************************************************************"
+end unless ( latest_tag.empty? )
+
+# Dir.chdir(release_module) do
+#   tags = `git tag --list`
+#   unless tags.include?(latest_tag)
+#     puts "*************************************************************************"
+#     puts "The release notes submodule has not been tagged with '#{latest_tag}'.    "
+#     puts "*************************************************************************"
+#   end
+# end
