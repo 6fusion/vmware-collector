@@ -1,4 +1,4 @@
-# Script to check log for vmware-meter errors
+# Script to check log for vmware-collector errors
 # 5/27/15, Bob S.
 require 'rubygems'
 require 'net/ssh'

@@ -38,7 +38,7 @@ class MeterConfigurationDocument
 
   field :registration_date, type: Time
   field :container_namespace, type: String, default: '6fusion'
-  field :container_repository, type: String, default: 'vmware-meter'
+  field :container_repository, type: String, default: 'vmware-collector'
 
   DOMAIN_REGEXP = %r<(?:[a-z0-9].+)*(?::[0-9]{1,5})?(/.*)?\Z>ixo
   HOST_REGEXP = /\A#{DOMAIN_REGEXP}/

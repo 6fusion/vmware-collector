@@ -124,7 +124,8 @@ for var in ${@:-development}; do
             update_mongo production
 
             # Update meter version in cloud config
-            sed -i '' -E 's|6fusion/vmware-meter:[^ ]+|6fusion/vmware-meter:'"$meter_version"'|' config/production/cloud-config.yml
+            sed -i '' -E 's|6fusion/vmware-collector:[^ ]+|6fusion/vmware-collector:'"$meter_version"'|'
+            config/production/cloud-config.yml
             grep -q $meter_version config/production/cloud-config.yml  # sanity check to make sure sed worked
             docker-compose build production
 
@@ -135,13 +136,13 @@ for var in ${@:-development}; do
             git tag -f ${meter_version}
             # git push tags
 
-            echo "Tagging with $namespace/vmware-meter:${meter_version}"
-            docker tag -f ${project_name}_production $namespace/vmware-meter:${meter_version}
+            echo "Tagging with $namespace/vmware-collector:${meter_version}"
+            docker tag -f ${project_name}_production $namespace/vmware-collector:${meter_version}
             echo
             docker images
             echo
             echo "Pushing to repository"
-            docker push ${namespace}/vmware-meter:${meter_version}
+            docker push ${namespace}/vmware-collector:${meter_version}
             docker rmi ${project_name}_production
             ;;
 
@@ -156,13 +157,13 @@ for var in ${@:-development}; do
 
             docker-compose build staging
 
-            echo "Tagging with $namespace/vmware-meter:beta"
-            docker tag -f ${project_name}_staging $namespace/vmware-meter:beta
+            echo "Tagging with $namespace/vmware-collector:beta"
+            docker tag -f ${project_name}_staging $namespace/vmware-collector:beta
             echo
             docker images
             echo
             echo "Pushing to repository"
-            docker push 6fusion/vmware-meter:beta
+            docker push 6fusion/vmware-collector:beta
             docker rmi ${project_name}_staging
             ;;
 
@@ -171,7 +172,7 @@ for var in ${@:-development}; do
 
             docker-compose build development
 
-            docker tag -f ${project_name}_development $namespace/vmware-meter:alpha
+            docker tag -f ${project_name}_development $namespace/vmware-collector:alpha
             docker rmi ${project_name}_development
             ;;
         cleanup)

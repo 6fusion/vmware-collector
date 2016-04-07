@@ -3,7 +3,7 @@
 require_relative 'test_helpers'
 
 RSpec.configure do |config|
-  config.default_path = '~/Projects/vmware-meter/spec/system'
+    config.default_path = '~/Projects/vmware-collector/spec/system'
 end
 
 class Setup

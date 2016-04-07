@@ -149,7 +149,7 @@ Vagrant.configure("2") do |config|
       config.vm.provision :shell,
                           inline: "docker ps -a | grep -q meterDB || docker run -v /data/db --name meterDB mongo:latest /bin/true"
       config.vm.provision :docker do |d|
-        d.build_image "/home/core/source", args: "-t 6fusion/vmware-meter:alpha"
+        d.build_image "/home/core/source", args: "-t 6fusion/vmware-collector:alpha"
       end
 
 

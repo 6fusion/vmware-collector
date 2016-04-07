@@ -12,7 +12,7 @@ if [ "$METER_ENV" = "staging" ]; then
     git checkout staging
     METER_VERSION=beta
 elif [ "$METER_ENV" = "production" ]; then
-    METER_VERSION=`grep '6fusion/vmware-meter:'   config/production/cloud-config.yml  | head -n1  | tr " " "\n" | grep 6fusion | awk -F: '{print $2}'`
+    METER_VERSION=`grep '6fusion/vmware-collector:'   config/production/cloud-config.yml  | head -n1  | tr " " "\n" | grep 6fusion | awk -F: '{print $2}'`
 fi
 
 if ([ -z $VM_IP ] || [ -z $METER_ENV ] ); then
@@ -127,8 +127,8 @@ set -e
 log "Starting mongo container"
 sshv docker run -d -p 27017:27017 --name meter-database --volumes-from meterDB mongo:$MONGO_VERSION
 
-log "Pulling down 6fusion/vmware-meter:$METER_VERSION"
-sshv docker pull 6fusion/vmware-meter:$METER_VERSION
+log "Pulling down 6fusion/vmware-collector:$METER_VERSION"
+sshv docker pull 6fusion/vmware-collector:$METER_VERSION
 
 # This key will be removed at the end of this script run; the cloud-config contains a service for generating this uniquely at deploy-time
 log "Installing temporary secret key for registration app"
@@ -154,7 +154,7 @@ sshv docker run -d \
      -v /run/systemd:/run/systemd \
      -v /var/lib/vmware_meter:/var/lib/vmware_meter \
      --link meter-database:mongo --name meter-registration \
-     6fusion/vmware-meter:$METER_VERSION bundle exec foreman start
+     6fusion/vmware-collector:$METER_VERSION bundle exec foreman start
 
 # TODO: consider adding this (currently handle by the registration wizard): rake db:mongoid:create_indexes
 
@@ -190,4 +190,4 @@ fi
 log "Setup completed"
 
 # download page, grep for meter version, slice off all the extra html/json, grep clean output again to ensure match a match against  cruft
-curl -s  https://hub.docker.com/r/6fusion/vmware-meter/ | grep $METER_VERSION | head -n1 | grep -q $METER_VERSION || log "There may not be a release note for this version. Please double check this exists on Docker Hub."
+curl -s  https://hub.docker.com/r/6fusion/vmware-collector/ | grep $METER_VERSION | head -n1 | grep -q $METER_VERSION || log "There may not be a release note for this version. Please double check this exists on Docker Hub."

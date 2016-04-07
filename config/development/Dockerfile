@@ -8,7 +8,7 @@ ENV RUNTIME_PACKAGES ca-certificates
 
 ENV METER_ENV development
 
-ENV RELEASE_NOTES https://registry.hub.docker.com/u/6fusion/vmware-meter/
+ENV RELEASE_NOTES https://registry.hub.docker.com/u/6fusion/vmware-collector/
 
 RUN mkdir -p /usr/src/app
 WORKDIR  /usr/src/app

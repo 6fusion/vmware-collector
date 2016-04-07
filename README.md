@@ -10,8 +10,8 @@ Follow us on Twitter [@6fusion](https://twitter.com/6fusion)
 
 #### Getting started
 
-* $ git clone git@github.com:6fusion/vmware-meter.git
-* cd vmware-meter
+* $ git clone git@github.com:6fusion/vmware-collector.git
+* cd vmware-collector
 * bundle install
 
 #### Usage

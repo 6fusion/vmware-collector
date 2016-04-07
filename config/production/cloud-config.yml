@@ -104,37 +104,6 @@ coreos:
 
         [Install]
         WantedBy=multi-user.target
-    - name: meter-registration.service
-      command: start
-      enable: true
-      content: |
-        [Unit]
-        Description=UC6 Meter Registration
-        Requires=docker.service
-        Requires=meter-database.service
-        After=docker.service
-        After=meter-database.service
-
-        [Service]
-        TimeoutStartSec=0
-        ExecStartPre=-/usr/bin/docker stop -t 60 meter-registration
-        ExecStartPre=-/usr/bin/docker rm meter-registration
-        # The volume mounts provide access to SystemD, D-Bus, journal log, and network/proxy/ntp configuration locations for the host
-        ExecStart=/usr/bin/docker run \
-                  -p 443:443 -p 80:80 \
-                  -v /:/host \
-                  -v /var/run/docker.sock:/var/run/docker.sock \
-                  -v /var/run/dbus:/var/run/dbus \
-                  -v /run/systemd:/run/systemd \
-                  -v /var/lib/vmware_meter:/var/lib/vmware_meter \
-                  --link meter-database:mongo --name meter-registration \
-                  6fusion/vmware-meter:0.9.29 bundle exec foreman start
-        ExecStop=/usr/bin/docker stop -t 60 meter-registration
-        RestartSec=30s
-        Restart=always
-
-        [Install]
-        WantedBy=multi-user.target
     - name: meter-infrastructure-collector.service
       enable: false
       content: |
@@ -149,7 +118,7 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 infrastructure-collector
         ExecStartPre=-/usr/bin/docker rm infrastructure-collector
-        ExecStart=/usr/bin/docker run  --link meter-database:mongo --name infrastructure-collector 6fusion/vmware-meter:0.9.29 ruby bin/infrastructure-collector.rb
+        ExecStart=/usr/bin/docker run  --link meter-database:mongo --name infrastructure-collector 6fusion/vmware-collector:0.9.29 ruby bin/infrastructure-collector.rb
         ExecStop=/usr/bin/docker stop -t 60 infrastructure-collector
         RestartSec=30s
         Restart=always
@@ -170,7 +139,7 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 inventory-collector
         ExecStartPre=-/usr/bin/docker rm inventory-collector
-        ExecStart=/usr/bin/docker run --link meter-database:mongo --name inventory-collector 6fusion/vmware-meter:0.9.29 ruby bin/inventory-collector.rb
+        ExecStart=/usr/bin/docker run --link meter-database:mongo --name inventory-collector 6fusion/vmware-collector:0.9.29 ruby bin/inventory-collector.rb
         ExecStop=/usr/bin/docker stop -t 60 inventory-collector
         RestartSec=30s
         Restart=always
@@ -191,7 +160,7 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 metrics-collector
         ExecStartPre=-/usr/bin/docker rm metrics-collector
-        ExecStart=/usr/bin/docker run --link meter-database:mongo --name metrics-collector 6fusion/vmware-meter:0.9.29 ruby bin/metrics-collector.rb
+        ExecStart=/usr/bin/docker run --link meter-database:mongo --name metrics-collector 6fusion/vmware-collector:0.9.29 ruby bin/metrics-collector.rb
         ExecStop=/usr/bin/docker stop -t 60 metrics-collector
         RestartSec=30s
         Restart=always
@@ -212,8 +181,8 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 missing-readings-handler
         ExecStartPre=-/usr/bin/docker rm missing-readings-handler
-        ExecStart=/usr/bin/docker run --link meter-database:mongo --name missing-readings-handler 6fusion/vmware-meter:0.9.29 ruby bin/missing-local-readings-handler.rb
-        ExecStart=/usr/bin/docker run --link meter-database:mongo --name missing-readings-handler 6fusion/vmware-meter:0.9.28 ruby bin/missing-local-readings-handler.rb
+        ExecStart=/usr/bin/docker run --link meter-database:mongo --name missing-readings-handler 6fusion/vmware-collector:0.9.29 ruby bin/missing-local-readings-handler.rb
+        ExecStart=/usr/bin/docker run --link meter-database:mongo --name missing-readings-handler 6fusion/vmware-collector:0.9.28 ruby bin/missing-local-readings-handler.rb
         ExecStop=/usr/bin/docker stop -t 60 missing-readings-handler
         RestartSec=30s
         Restart=always
@@ -234,24 +203,13 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 uc6-connector
         ExecStartPre=-/usr/bin/docker rm uc6-connector
-        ExecStart=/usr/bin/docker run --link meter-database:mongo --name uc6-connector 6fusion/vmware-meter:0.9.29 ruby bin/uc6-connector.rb
+        ExecStart=/usr/bin/docker run --link meter-database:mongo --name uc6-connector 6fusion/vmware-collector:0.9.29 ruby bin/uc6-connector.rb
         ExecStop=/usr/bin/docker stop -t 60 uc6-connector
         RestartSec=30s
         Restart=always
 
         [Install]
         WantedBy=multi-user.target
-    - name: keygen.service
-      command: start
-      before: meter-registration.service
-      content: |
-        [Unit]
-        Description=Set the secret key for rails
-
-        [Service]
-        Type=oneshot
-        ExecStart=/bin/sh -c "head -c 400 /dev/urandom | tr -dc 'a-zA-Z0-9' > /var/lib/vmware_meter/secret_key"
-
   oem:
     bug-report-url: "https://github.com/coreos/bugs/issues"
     id: vmware
