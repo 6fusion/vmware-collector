@@ -89,8 +89,8 @@ coreos:
         ExecStartPre=-/usr/bin/docker rm meter-database
         ExecStart=/usr/bin/docker run -p 27017:27017 --name meter-database -v /:/host --volumes-from meterDB mongo:3.0.6
         ExecStop=/usr/bin/docker stop -t 60 meter-database
-        RestartSec=30s
-        Restart=always
+        #RestartSec=30s
+        #Restart=always
 
         [Install]
         WantedBy=multi-user.target
@@ -108,7 +108,7 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 infrastructure-collector
         ExecStartPre=-/usr/bin/docker rm infrastructure-collector
-        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo -v /home/core/source/lib:/usr/src/app/lib --name infrastructure-collector 6fusion/vmware-:alpha ruby bin/infrastructure-collector.rb
+        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo -v /home/core/source/lib:/usr/src/app/lib --name infrastructure-collector 6fusion/vmware-collector:alpha ruby bin/infrastructure-collector.rb
         ExecStop=/usr/bin/docker stop -t 60 infrastructure-collector
         RestartSec=30s
         Restart=always
@@ -129,7 +129,7 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 inventory-collector
         ExecStartPre=-/usr/bin/docker rm inventory-collector
-        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo  -v /home/core/source/lib:/usr/src/app/lib --name inventory-collector 6fusion/vmware-:alpha ruby bin/inventory-collector.rb
+        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo  -v /home/core/source/lib:/usr/src/app/lib --name inventory-collector 6fusion/vmware-collector:alpha ruby bin/inventory-collector.rb
         ExecStop=/usr/bin/docker stop -t 60 inventory-collector
         RestartSec=30s
         Restart=always
@@ -150,7 +150,7 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 metrics-collector
         ExecStartPre=-/usr/bin/docker rm metrics-collector
-        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo  -v /home/core/source/lib:/usr/src/app/lib --name metrics-collector 6fusion/vmware-:alpha ruby bin/metrics-collector.rb
+        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo  -v /home/core/source/lib:/usr/src/app/lib --name metrics-collector 6fusion/vmware-collector:alpha ruby bin/metrics-collector.rb
         ExecStop=/usr/bin/docker stop -t 60 metrics-collector
         RestartSec=30s
         Restart=always
@@ -171,7 +171,7 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 missing-readings-handler
         ExecStartPre=-/usr/bin/docker rm missing-readings-handler
-        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo  -v /home/core/source/lib:/usr/src/app/lib --name missing-readings-handler 6fusion/vmware-:alpha ruby bin/missing-local-readings-handler.rb
+        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo  -v /home/core/source/lib:/usr/src/app/lib --name missing-readings-handler 6fusion/vmware-collector:alpha ruby bin/missing-local-readings-handler.rb
         ExecStop=/usr/bin/docker stop -t 60 missing-readings-handler
         RestartSec=30s
         Restart=always
@@ -192,7 +192,7 @@ coreos:
         TimeoutStartSec=0
         ExecStartPre=-/usr/bin/docker stop -t 60 uc6-connector
         ExecStartPre=-/usr/bin/docker rm uc6-connector
-        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo  -v /home/core/source/lib:/usr/src/app/lib --name uc6-connector 6fusion/vmware-:alpha ruby bin/uc6-connector.rb
+        ExecStart=/usr/bin/docker run -e METER_ENV=development --link meter-database:mongo  -v /home/core/source/lib:/usr/src/app/lib --name uc6-connector 6fusion/vmware-collector:alpha ruby bin/uc6-connector.rb
         ExecStop=/usr/bin/docker stop -t 60 uc6-connector
         RestartSec=30s
         Restart=always

@@ -40,7 +40,7 @@ module GlobalConfiguration
         freeze(opt, ENV[opt.to_s.upcase]) if ENV[opt.to_s.upcase].present? }
 
       # Pull in dev/test configs
-      process_yaml_overrides
+      process_config_overrides
 
       # Before we attempt to access the MeterConfiguration collection, we need to initialize mongo
       #  in such a way that it doesn't rely on the Configuration module
@@ -52,7 +52,7 @@ module GlobalConfiguration
       # Update values with configuration from mongo
       initialize_mongo_connection({ encryption_secret: 'not set',
                                     mongoid_database:  self[:mongoid_database],
-                                    mongoid_hosts:     self[:mongoid_hosts],
+                                    mongoid_hosts:     ["#{ENV['METER_DATABASE_PORT_27017_TCP_ADDR']}:#{ENV['METER_DATABASE_PORT_27017_TCP_PORT']}"], #self[:mongoid_hosts],
                                     mongoid_options:   self[:mongoid_options],
                                     mongoid_log_level: self[:mongoid_log_level]})
 
@@ -79,7 +79,7 @@ module GlobalConfiguration
     end
 
     def refresh
-      process_yaml_overrides
+      process_config_overrides
 
       # Update values with configuration from mongo
       meter_configuration_document.attributes.each do |key,value|
@@ -198,18 +198,24 @@ module GlobalConfiguration
     end
 
     def config_root
+      @logger.debug("**********************")
+      pwd = Dir.pwd
+      @logger.debug(pwd)
+      @logger.debug("**********************")
       @config_root ||= begin
                          case
-                         when File.readable?("config/#{@environment}/uc6.yml") then "config/#{@environment}"
+                         when File.readable?("#{pwd}/../config/#{@environment}/uc6.yml") then "#{pwd}/../config/#{@environment}"
                          when File.readable?('config/uc6.yml') then 'config'
                          when File.readable?('../config/uc6.yml') then '../config'
                          end
                        end
     end
 
-    def process_yaml_overrides
-      ['mongoid','vsphere','uc6'].each {|file|
-        process_yaml(file) }
+    def process_config_overrides
+      ['mongoid','vsphere'].each {|file| process_yaml(file) }
+      ['uc6'].each{ |file| process_secret(file) }
+      puts "ENV\n\n"
+      puts ENV.to_a
     end
 
     def process_yaml(filename)
@@ -220,8 +226,31 @@ module GlobalConfiguration
           config = filename.eql?('mongoid') ?
                      YAML.load_file(file)[@environment]['sessions']['default'] :
                      YAML.load_file(file)[@environment]
-          config.each {|key,value|
-            store("#{filename}_#{key}".to_sym, human_to_machine(value)) }
+          config.each do |key,value|
+            ENV["#{filename}_#{key}".upcase] = value
+            store("#{filename}_#{key}".to_sym, human_to_machine(value))
+          end
+        rescue StandardError => e
+          @logger.warn "Could not parse configuration file: #{file}"
+          @logger.debug e
+          @logger.debug File.read(file)
+        end
+      end
+    end
+
+    def process_secret(filename)
+      file = "#{ENV['SECRETS_PATH']}/#{filename}"
+      if File.exists?(file)
+        @logger.debug "Loading configuration overrides from #{file}"
+        begin
+          content = File.open(file, 'rb') { |file| file.read }
+          result = Hash.new
+          content.delete("{}").split(",").map{|elem| p = elem.split('=>');  result[p[0].strip]= p[1].strip}
+           @logger.debug "RESULT = > #{result}"
+          result.each do |key,value|
+            ENV["#{filename}_#{key}".upcase] = value
+            store("#{filename}_#{key}".to_sym, human_to_machine(value))
+          end
         rescue StandardError => e
           @logger.warn "Could not parse configuration file: #{file}"
           @logger.debug e

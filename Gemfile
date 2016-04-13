@@ -14,6 +14,7 @@ gem 'rufus-scheduler', '~>3.0'
 # admin console requirements
 gem 'docker-api', require: 'docker'
 gem 'foreman'
+gem 'rails'
 gem 'ruby-dbus'
 #gem 'systemd', :git => 'git://github.com/ledbettj/systemd.git'  # taken down by author; committed locally to meter repo
 gem 'tzinfo-data'
