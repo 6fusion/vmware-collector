@@ -31,11 +31,9 @@ module GlobalConfiguration
 
       # Initialize iwth default values
       merge!(defaults)
-
       # Process environment (e.g., mongo info could be passed in through ENV)
       #  Since environment overrides everything, we "freeze" these values so they won't
       #  get updated by subsequent configuration sources
-
       (keys + aliases.keys).each {|opt|
         freeze(opt, ENV[opt.to_s.upcase]) if ENV[opt.to_s.upcase].present? }
 
@@ -50,48 +48,17 @@ module GlobalConfiguration
       # store in such a way that it can be merged with yaml overrides
       store(:mongoid_options, { pool_size: 20 })
       # Update values with configuration from mongo
-      initialize_mongo_connection({ encryption_secret: 'not set',
-                                    mongoid_database:  self[:mongoid_database],
+      initialize_mongo_connection({ mongoid_database:  self[:mongoid_database],
                                     mongoid_hosts:     ["#{ENV['METER_DATABASE_PORT_27017_TCP_ADDR']}:#{ENV['METER_DATABASE_PORT_27017_TCP_PORT']}"], #self[:mongoid_hosts],
                                     mongoid_options:   self[:mongoid_options],
                                     mongoid_log_level: self[:mongoid_log_level]})
-
-      meter_configuration_document.attributes.each do |key,value| # the value can't actually be used for the encrypted fields, hence the "send" below
-        begin
-          next if %w(_id created_at updated_at).include?(key)  #!! cleanup
-          store(key.to_sym, meter_configuration_document.send(key)) unless value.blank?
-        rescue Gibberish::AES::SJCL::DecryptionError => e
-          @logger.warn e.message
-          @logger.debug e
-          store(key.to_sym, 'unable to decrypt' ) unless value.blank?
-        end
-      end
-
-      Mongoid::EncryptedFields.cipher = Gibberish::AES.new( retrieve_encryption_secret )
-      refresh
 
       @logger.level = fetch(:uc6_log_level)
       Logging::MeterLog.instance.logger.level = fetch(:uc6_log_level)
     end
 
     def configured?
-      !fetch(:registration_date,"").blank?
-    end
-
-    def refresh
-      process_config_overrides
-
-      # Update values with configuration from mongo
-      meter_configuration_document.attributes.each do |key,value|
-        next if %w(_id created_at updated_at).include?(key)  #!! cleanup
-        begin
-          store(key.to_sym, meter_configuration_document.send(key)) unless value.nil?
-        rescue Gibberish::AES::SJCL::DecryptionError => e
-          @logger.warn e.message
-          @logger.debug e.backtrace
-          store(key.to_sym, 'unable to decrypt' ) unless value.blank?
-        end
-      end
+      !fetch(:registration_date,"").blank? #NEEDS to be changed! as now we are not storing anything on the db
     end
 
     def to_s
@@ -150,8 +117,7 @@ module GlobalConfiguration
         uc6_api_endpoint:   method(:prepend_uc6_api_host),
         uc6_oauth_endpoint: method(:prepend_uc6_api_host),
         uc6_infrastructure_id: method(:get_an_infrastructure_id),
-        mongoid_log_level:  method(:infer_mongoid_log_level),
-        encryption_secret:  method(:retrieve_encryption_secret)
+        mongoid_log_level:  method(:infer_mongoid_log_level)
       }
     end
 
@@ -165,7 +131,6 @@ module GlobalConfiguration
     def defaults
       @defaults ||= { config_root: 'config',
                       data_center: nil,
-                      encryption_secret: 'see fetch_hook method',
                       vsphere_session_limit: 10,
                       vsphere_user: 'not set',
                       vsphere_password: 'not set',
@@ -198,10 +163,7 @@ module GlobalConfiguration
     end
 
     def config_root
-      @logger.debug("**********************")
       pwd = Dir.pwd
-      @logger.debug(pwd)
-      @logger.debug("**********************")
       @config_root ||= begin
                          case
                          when File.readable?("#{pwd}/../config/#{@environment}/uc6.yml") then "#{pwd}/../config/#{@environment}"
@@ -214,8 +176,6 @@ module GlobalConfiguration
     def process_config_overrides
       ['mongoid','vsphere'].each {|file| process_yaml(file) }
       ['uc6'].each{ |file| process_secret(file) }
-      puts "ENV\n\n"
-      puts ENV.to_a
     end
 
     def process_yaml(filename)
@@ -227,7 +187,6 @@ module GlobalConfiguration
                      YAML.load_file(file)[@environment]['sessions']['default'] :
                      YAML.load_file(file)[@environment]
           config.each do |key,value|
-            ENV["#{filename}_#{key}".upcase] = value
             store("#{filename}_#{key}".to_sym, human_to_machine(value))
           end
         rescue StandardError => e
@@ -246,9 +205,7 @@ module GlobalConfiguration
           content = File.open(file, 'rb') { |file| file.read }
           result = Hash.new
           content.delete("{}").split(",").map{|elem| p = elem.split('=>');  result[p[0].strip]= p[1].strip}
-           @logger.debug "RESULT = > #{result}"
           result.each do |key,value|
-            ENV["#{filename}_#{key}".upcase] = value
             store("#{filename}_#{key}".to_sym, human_to_machine(value))
           end
         rescue StandardError => e
@@ -301,29 +258,6 @@ module GlobalConfiguration
       end
     end
 
-    def retrieve_encryption_secret(*)
-      @encryption_secret ||= begin
-        if !( self[:uc6_meter_id] and self[:uc6_organization_id] and self[:uc6_infrastructure_id] and self[:uc6_meter_id] )
-          @logger.warn "Cannot retrieve encryption secret from UC6. Missing a required parameter org/inf/meter: "\
-                       "#{self[:uc6_organization_id]}/#{self[:uc6_infrastructure_id]}/#{self[:uc6_meter_id]}"
-          ""
-        else
-          url = "#{self[:uc6_api_endpoint]}/organizations/#{fetch(:uc6_organization_id)}" \
-                "/infrastructures/#{self[:uc6_infrastructure_id]}/vmware_meters/#{fetch(:uc6_meter_id)}"
-          hyper_client = HyperClient.new(self)
-          response = hyper_client.get(url)
-          # FIXME remove this before alpha release
-          @logger.debug "key retrieved: #{response.json['password']}"
-          response.json['password'] # this is not actually the password, just randomness we use as an encryption key
-        end
-      rescue StandardError => e
-        @logger.error "Can't retrieve encryption secret from UC6."
-        @logger.error e.message
-        @logger.debug e.backtrace.join("\n")
-        ""
-      end
-    end
-
     def infer_mongoid_log_level(*)
       # Mongoid should only be bumped up to debug if it's been explicitly set. I.e., don't assume that because the
       #  meter is at debug, mongoid should be as well (it's really noisy)
@@ -338,14 +272,14 @@ module GlobalConfiguration
         port
     end
 
-    def meter_configuration_document
-      MeterConfigurationDocument.first || MeterConfigurationDocument.new  # There should only be one document in this collection
-    end
+    # def meter_configuration_document
+    #   MeterConfigurationDocument.first || MeterConfigurationDocument.new  # There should only be one document in this collection
+    # end
 
-    def update_mongo(key,value)
-      meter_configuration_document.update_attribute(key.to_sym,value) if
-        meter_configuration_document.fields.keys.include?(key.to_s)
-    end
+    # def update_mongo(key,value)
+    #   meter_configuration_document.update_attribute(key.to_sym,value) if
+    #     meter_configuration_document.fields.keys.include?(key.to_s)
+    # end
 
   end
 

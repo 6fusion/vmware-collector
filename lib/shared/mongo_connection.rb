@@ -17,8 +17,6 @@ module MongoConnection
   def initialize_mongo_connection(mongoid_config=GlobalConfiguration::GlobalConfig.instance)
     STDOUT.sync = true # disable output buffering; makes it hard to follow docker logs
 
-    Mongoid::EncryptedFields.cipher = Gibberish::AES.new(mongoid_config[:encryption_secret])
-
     load_params = {sessions: {default: {
                                 database: mongoid_config[:mongoid_database],
                                 hosts:   [mongoid_config[:mongoid_hosts]].flatten,
