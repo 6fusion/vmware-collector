@@ -1,6 +1,5 @@
 require 'gibberish'
 require 'logger'  # ruby's logger, to avoid circular dependencies via configuration module
-require 'mongoid-encrypted-fields'
 
 require 'global_configuration'
 

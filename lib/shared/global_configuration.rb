@@ -3,7 +3,6 @@ require 'set'
 require 'singleton'
 require 'yaml'
 
-require 'meter_configuration_document'
 require 'mongo_connection'
 
 module GlobalConfiguration

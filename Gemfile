@@ -5,7 +5,6 @@ gem 'activesupport',   '~>4.0'
 gem 'concurrent-ruby-ext', require: 'concurrent'
 gem 'gibberish'
 gem 'mongoid',         '~>4.0'
-gem 'mongoid-encrypted-fields'
 gem 'oauth2',          '~>1.0'
 gem 'rbvmomi',         '~>1.8'
 gem 'rest-client',     '~>1.8'
@@ -14,12 +13,8 @@ gem 'rufus-scheduler', '~>3.0'
 # admin console requirements
 gem 'docker-api', require: 'docker'
 gem 'foreman'
-gem 'rails'
 gem 'ruby-dbus'
-#gem 'systemd', :git => 'git://github.com/ledbettj/systemd.git'  # taken down by author; committed locally to meter repo
 gem 'tzinfo-data'
-gem 'wicked',           '~>1.1'
-#gem 'websocket-rails'
 
 # Locked version to prevent errors, etc
 gem 'faye-websocket', '=0.10.0'
