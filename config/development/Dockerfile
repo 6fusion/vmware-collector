@@ -16,7 +16,7 @@ RUN mkdir -p /var/run/secrets
 WORKDIR  /usr/src/app
 COPY .  /usr/src/app
 COPY ./config/development/cloud-config.yml /usr/share/oem/
-COPY ./secrets/ /var/run/secrets/
+COPY ./secrets/ $SECRETS_PATH
 
 # Update and install all of the required packages.
 # At the end, remove the apk cache

@@ -151,7 +151,7 @@ class HyperClient
   def oauth_token
     first_attempt = true
     @oauth_token ||=
-      if ( @configuration[:uc6_oauth_token].present? )
+      if ( @configuration.present_value?(:uc6_oauth_token) )
         logger.debug "Returning locally saved oauth token"
         @configuration[:uc6_oauth_token]
       else
@@ -188,9 +188,7 @@ class HyperClient
 
   def oauth_client
     @oauth_client ||= begin
-      @configuration.refresh  # Ensure we have the latest API credentials
-
-      connection_opts = if @configuration[:uc6_proxy_host].present?
+      connection_opts = if @configuration.present_value?(:uc6_proxy_host)
                           { :proxy => {uri:      "#{@configuration[:uc6_proxy_host]}:#{@configuration[:uc6_proxy_port]}",
                                        user:     @configuration[:uc6_proxy_user],
                                        password: @configuration[:uc6_proxy_password] } }
@@ -199,7 +197,7 @@ class HyperClient
                         end
 
 
-      if @configuration[:uc6_refresh_token].present?
+      if @configuration.present_value?(:uc6_refresh_token)
         OAuth2::Client.new(nil,nil,site: @configuration[:uc6_oauth_endpoint], connection_opts: connection_opts)
       else
         OAuth2::Client.new(@configuration[:uc6_application_id],
@@ -212,12 +210,10 @@ class HyperClient
 
   def oauth_password_client
     @oauth_password_client ||= begin
-      @configuration.refresh  # Ensure we have the latest API credentials
-
       OAuth2::Client.new(@configuration[:uc6_application_id],
                          @configuration[:uc6_application_secret],
                          site: @configuration[:uc6_oauth_endpoint],
-                         connection_opts: @configuration[:uc6_proxy_host].present? ?
+                         connection_opts: @configuration.present_value?(:uc6_proxy_host) ?
                            { :proxy => {uri:      "#{@configuration[:uc6_proxy_host]}:#{@configuration[:uc6_proxy_port]}",
                                         user:     @configuration[:uc6_proxy_user],
                                         password: @configuration[:uc6_proxy_password] } } : { } )
@@ -226,11 +222,9 @@ class HyperClient
 
   def oauth_refreshtoken_client
     @oauth_refreshtoken_client ||= begin
-      @configuration.refresh  # Ensure we have the latest API credentials
-
       OAuth2::Client.new(nil,nil,
                          site: @configuration[:uc6_oauth_endpoint],
-                         connection_opts: @configuration[:uc6_proxy_host].present? ?
+                         connection_opts: @configuration.present_value?(:uc6_proxy_host) ?
                            { :proxy => {uri:      "#{@configuration[:uc6_proxy_host]}:#{@configuration[:uc6_proxy_port]}",
                                         user:     @configuration[:uc6_proxy_user],
                                         password: @configuration[:uc6_proxy_password] } } : { } )
@@ -269,8 +263,7 @@ class HyperClient
 
   def refresh_token_from_refreshtoken
     logger.debug "Attempting to refresh oauth token"
-
-    if ( @configuration[:uc6_refresh_token].present? )
+     if( @configuration.present_value?(:uc6_refresh_token) )
       begin
         token = OAuth2::AccessToken.from_hash(oauth_refreshtoken_client, {refresh_token: @configuration[:uc6_refresh_token]})
         token.refresh!
@@ -288,7 +281,7 @@ class HyperClient
   def refresh_token_from_credentials
     logger.debug "Attempting to refresh oauth token with credentials for #{@configuration[:uc6_login_email]}"
 
-    if ( @configuration[:uc6_login_password].present? )
+    if ( @configuration.present_value?(:uc6_login_password) )
       oauth_password_client.password.get_token(@configuration[:uc6_login_email],
                                                @configuration[:uc6_login_password],
                                                scope: @configuration[:uc6_api_scope])
@@ -297,5 +290,4 @@ class HyperClient
       nil
     end
   end
-
 end
