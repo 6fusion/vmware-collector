@@ -16,7 +16,6 @@ module GlobalConfiguration
 
     def initialize
       super
-
       @frozen_keys = Set.new
       @environment = ENV['METER_ENV'] || 'development'
 
@@ -47,17 +46,20 @@ module GlobalConfiguration
       # store in such a way that it can be merged with yaml overrides
       store(:mongoid_options, { pool_size: 20 })
       # Update values with configuration from mongo
+      # Original configuration, uncomment it to make it work on the container
       initialize_mongo_connection({ mongoid_database:  self[:mongoid_database],
-                                    mongoid_hosts:     ["#{ENV['METER_DATABASE_PORT_27017_TCP_ADDR']}:#{ENV['METER_DATABASE_PORT_27017_TCP_PORT']}"], #self[:mongoid_hosts],
+                                    mongoid_hosts:     self[:mongoid_hosts], #["#{ENV['MONGO_PORT_27017_TCP_ADDR']}:#{ENV['MONGO_PORT_27017_TCP_PORT']}"]
                                     mongoid_options:   self[:mongoid_options],
                                     mongoid_log_level: self[:mongoid_log_level]})
+      # Comment the following line if you are going to run it on container
+      #initialize_mongo_connection({:mongoid_database=>"6fusion_meter_development", :mongoid_hosts=>["localhost:27017"], :mongoid_options=>{:pool_size=>20}, :mongoid_log_level=>1})
 
       @logger.level = fetch(:uc6_log_level)
       Logging::MeterLog.instance.logger.level = fetch(:uc6_log_level)
     end
 
     def configured?
-      !fetch(:registration_date,"").blank? #NEEDS to be changed! as now we are not storing anything on the db
+      self[:verified_api_connection] && self[:verified_vsphere_connection]
     end
 
     def to_s
@@ -78,7 +80,6 @@ module GlobalConfiguration
         value
       else
         value = apply_store_hook(key,value)
-        update_mongo(key,value)
         super(key, value)
       end
     end
@@ -87,6 +88,14 @@ module GlobalConfiguration
       @logger.debug "Freezing key/value for '#{key}'"
       store(key, value)
       @frozen_keys << (aliases[key] || key)
+    end
+
+    def blank_value?( key )
+      self[key].blank? || self[key] == 'not set'
+    end
+
+    def present_value?( key )
+      !blank_value?(key)
     end
 
     private
@@ -129,7 +138,7 @@ module GlobalConfiguration
 
     def defaults
       @defaults ||= { config_root: 'config',
-                      data_center: nil,
+                      data_center: 'not set',
                       vsphere_session_limit: 10,
                       vsphere_user: 'not set',
                       vsphere_password: 'not set',
@@ -141,17 +150,34 @@ module GlobalConfiguration
                       uc6_login_email: 'not set',
                       uc6_login_password: 'not set',
                       uc6_batch_size: 500,
-                      uc6_api_endpoint: 'api/v2',
-                      uc6_oauth_endpoint: 'oauth',
-                      uc6_api_scope: 'admin_organization',
+                      uc6_api_endpoint: 'not set',
+                      uc6_oauth_endpoint: 'not set',
+                      uc6_api_scope: 'not set',
                       uc6_api_threads: 2,
-                      uc6_application_id: 'a1acf7ed12ecd4a9857e5d01fc64df7c0bb86dc380cd4b4347fc7c979b1251e6',
-                      uc6_application_secret: '70c57259e3d20edffd902a227110eb0f32e9e9a3386bbc61e0e62b501d7d6c68',
-                      uc6_meter_version: 'alpha',
+                      uc6_application_id: 'not set',
+                      uc6_application_secret: 'not set',
+                      uc6_meter_version: 'not set',
+                      uc6_organization_id: 'not set',
+                      uc6_organization_name: 'not set',
+                      uc6_infrastructure_id: 'not set',
+                      uc6_meter_id: 'not set',
+                      uc6_oauth_token: 'not set',
+                      uc6_refresh_token: 'not set',
+                      uc6_proxy_host: 'not set',
+                      uc6_proxy_port: 'not set',
+                      uc6_proxy_user: 'not set',
+                      uc6_proxy_password: 'not set',
                       uc6_log_level: Logger::DEBUG,
                       mongoid_log_level: Logger::INFO,
                       mongoid_hosts: 'localhost:27017',
-                      mongoid_database: '6fusion_meter' }
+                      mongoid_database: '6fusion_meter',
+                      mongoid_port: 'not set',
+                      verified_api_connection: false,
+                      verified_vsphere_connection: false,
+                      container_namespace: '6fusion',
+                      container_repository: 'vmware-collector',
+                      updated_credentials: false
+                    }
     end
 
     # freeze + the updated store allow setting a value such that it can't be overridden
@@ -163,6 +189,7 @@ module GlobalConfiguration
 
     def config_root
       pwd = Dir.pwd
+      print "PWD => #{pwd} \n\n"
       @config_root ||= begin
                          case
                          when File.readable?("#{pwd}/../config/#{@environment}/uc6.yml") then "#{pwd}/../config/#{@environment}"
@@ -173,12 +200,12 @@ module GlobalConfiguration
     end
 
     def process_config_overrides
-      ['mongoid','vsphere'].each {|file| process_yaml(file) }
-      ['uc6'].each{ |file| process_secret(file) }
+      ['mongoid'].each {|file| process_yaml(file) }
+      ['uc6', 'vsphere'].each{ |file| process_secret(file) }
     end
 
     def process_yaml(filename)
-      file = "#{config_root}/#{filename}.yml"
+      file = "#{config_root}/#{filename}.yml"   #"/config/development/#{filename}.yml" #!!! Change to this if you are gonna run it out of container
       if ( File.readable?(file) )
         @logger.debug "Loading configuration overrides from #{file}"
         begin
@@ -197,13 +224,12 @@ module GlobalConfiguration
     end
 
     def process_secret(filename)
-      file = "#{ENV['SECRETS_PATH']}/#{filename}"
+      file = "#{ENV['SECRETS_PATH']}/#{filename}" #"secrets/#{filename}" #!!! Change to this if you are gonna run it out of container
       if File.exists?(file)
         @logger.debug "Loading configuration overrides from #{file}"
         begin
           content = File.open(file, 'rb') { |file| file.read }
-          result = Hash.new
-          content.delete("{}").split(",").map{|elem| p = elem.split('=>');  result[p[0].strip]= p[1].strip}
+          result = JSON.parse(content)
           result.each do |key,value|
             store("#{filename}_#{key}".to_sym, human_to_machine(value))
           end
@@ -270,15 +296,6 @@ module GlobalConfiguration
         (fetch(:uc6_proxy_host,"").start_with?('https') ? '443' : '80') :
         port
     end
-
-    # def meter_configuration_document
-    #   MeterConfigurationDocument.first || MeterConfigurationDocument.new  # There should only be one document in this collection
-    # end
-
-    # def update_mongo(key,value)
-    #   meter_configuration_document.update_attribute(key.to_sym,value) if
-    #     meter_configuration_document.fields.keys.include?(key.to_s)
-    # end
 
   end
 

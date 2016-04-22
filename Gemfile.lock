@@ -189,6 +189,7 @@ DEPENDENCIES
   foreman
   gibberish
   google_drive
+  json
   mongoid (~> 4.0)
   net-ssh
   nokogiri (= 1.6.6.2)
