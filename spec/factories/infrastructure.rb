@@ -6,7 +6,6 @@ FactoryGirl.define do
     record_status 'created'
     tags nil
 
-    meter_instance { build(:meter_instance) }
     hosts { [build(:host), build(:host, platform_id: 'uniq-id-2')] }
     # Note: Remember Network platform_ids are integers
     networks { [build(:network), build(:network, platform_id: 2)] }

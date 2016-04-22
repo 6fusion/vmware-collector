@@ -5,7 +5,8 @@ class Disk
   include Mongoid::Timestamps
   include Matchable
 
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
   field :platform_id, type: String
   field :record_status, type: String
   field :name, type: String

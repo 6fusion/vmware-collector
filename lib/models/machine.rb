@@ -10,7 +10,8 @@ class Machine
   include Matchable
   include Logging
 
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
   field :platform_id, type: String
 
   field :record_status, type: String
