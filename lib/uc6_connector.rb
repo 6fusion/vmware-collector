@@ -22,8 +22,8 @@ Thread.abort_on_exception = true
 
 class UC6Connector
   include GlobalConfiguration
-  include Logging
   include UC6UrlGenerator
+  include Logging
   using RbVmomiExtensions
 
   def initialize
@@ -183,7 +183,7 @@ class UC6Connector
 
     infrastructure_creates.each do |infrastructure|
 
-      infrastructure = infrastructure.submit_create(infrastructures_url)
+      infrastructure = infrastructure.submit_create
       if (infrastructure.remote_id)
         @local_platform_remote_id_inventory["i:#{infrastructure.platform_id}"] = PlatformRemoteId.new(infrastructure: infrastructure.platform_id,
                                                                                                       remote_id: infrastructure.remote_id)
@@ -230,7 +230,6 @@ class UC6Connector
   end
 
   def load_infrastructure_data
-    puts "Loading Infrastructures"
     all_infrastructure_json = @hyper_client.get_all_resources(infrastructures_url)
 
     all_infrastructure_json.each do |json_batch|
@@ -260,9 +259,7 @@ class UC6Connector
             created_machine.update_attribute(:record_status, 'updated')
             next
           end
-          
-          submit_url = machines_creation_url(infrastructure_prid.remote_id)
-          created_machine.submit_create(submit_url)
+          created_machine.submit_create
 
           if created_machine.record_status == 'verified_create'
             created_machine.save # Update status in mongo
@@ -301,7 +298,8 @@ class UC6Connector
           next
         end
 
-        submit_url = infrastructure_machines_url(infrastructure_prid.remote_id) # Machines are unique by platform_id/virtual_name scoped to Infrastructure
+        # Machines are unique by platform_id/virtual_name scoped to Infrastructure
+        submit_url = infrastructure_machines_url(infrastructure_id: infrastructure_prid.remote_id)
 
         if m_f_c.already_submitted?(submit_url)
           m_f_c.update_attribute(:record_status, 'verified_create') # checks UC6 using virtual_name
@@ -355,6 +353,7 @@ class UC6Connector
           logger.debug "Updated machine #{updated_machine.inspect} \n"
           submit_url = machine_url(updated_machine) 
           submitted_machine = updated_machine.submit_update(submit_url)
+
           logger.debug "submitted_machine.record_status => #{submitted_machine.record_status} \n\n"
           # Note: Successfully updated machines record_status changes from "updated" to "verified_update"
           if submitted_machine.record_status == 'verified_update'
@@ -576,21 +575,9 @@ class UC6Connector
     end
   end
 
-  def load_infrastructure_data
-    all_infrastructure_json = @hyper_client.get_all_resources(infrastructures_url)
-
-    all_infrastructure_json.each do |json_batch|
-      infrastructures = json_batch['embedded']['infrastructures']
-      infrastructures.each do |inf|
-        @local_infrastructure_inventory[inf['name']] = Infrastructure.new(name: inf['name'])
-      end
-    end
-    @local_infrastructure_inventory.save
-  end
-
   def retrieve_machines(infrastructure)
     machines_by_platform_id = Hash.new
-    machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure.remote_id, configuration[:uc6_organization_id]))
+    machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure.remote_id))
     machines_json.each do |json|
       remote_id = json['id']
       response = @hyper_client.get(retrieve_machine(remote_id))

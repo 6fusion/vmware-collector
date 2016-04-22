@@ -4,6 +4,7 @@ require 'infrastructure_collector'
 require 'logging'
 require 'matchable'
 require 'network'
+require 'uc6_url_generator'
 
 class Infrastructure
   include Mongoid::Document
@@ -11,6 +12,7 @@ class Infrastructure
   include Logging
   include Matchable
   include GlobalConfiguration
+  include UC6UrlGenerator
 
   field :platform_id, type: String
   field :remote_id, type: String
@@ -84,12 +86,12 @@ class Infrastructure
     self.update_attribute('enabled', true)
   end
 
-  def submit_create(infrastructure_endpoint)
+  def submit_create
     response = nil
     begin
       logger.info "Submitting #{name} to API for creation in UC6"
       self.tags = name if tags.blank?
-      response = hyper_client.post(infrastructure_endpoint, api_format)
+      response = hyper_client.post(infrastructures_post_url, api_format)
       if ( response and response.code == 200 )
         self.remote_id = JSON.parse(response)["id"]
         # TODO: see if we need this at this place
@@ -104,7 +106,7 @@ class Infrastructure
 
     rescue RestClient::Conflict => e
       logger.warn "Infrastructure already exists in UC6; attempting to update local instance to match"
-      infrastructures = hyper_client.get_all_resources(infrastructure_endpoint)
+      infrastructures = hyper_client.get_all_resources(infrastructures_url)
       me_as_json = infrastructures.find{|inf| inf['name'].eql?(name) }
 
       if ( me_as_json )
@@ -121,8 +123,8 @@ class Infrastructure
     self
   end
 
-  def submit_update(infrastructure_endpoint)
-    response = hyper_client.put("#{infrastructure_endpoint}/#{remote_id}", api_format.merge(status: 'Active'))
+  def submit_update
+    response = hyper_client.put(infrastructure_url(infrastructure_id: remote_id), api_format.merge(status: 'Active'))
   end
 
   def attribute_map
