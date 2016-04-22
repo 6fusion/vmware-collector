@@ -3,7 +3,7 @@ require 'host'
 require 'infrastructure_collector'
 require 'logging'
 require 'matchable'
-require 'meter_instance'
+#require 'meter_instance'
 require 'network'
 
 class Infrastructure
@@ -14,27 +14,27 @@ class Infrastructure
   include GlobalConfiguration
 
   field :platform_id, type: String
-  field :remote_id, type: Integer
+  field :remote_id, type: String
   field :name, type: String
   field :record_status, type: String
   field :tags, type: String
 
-  embeds_one  :meter_instance
+  #embeds_one  :meter_instance
   embeds_many :hosts
   embeds_many :networks
   embeds_many :volumes
 
   accepts_nested_attributes_for :hosts
   accepts_nested_attributes_for :networks
-  accepts_nested_attributes_for :meter_instance
+  #accepts_nested_attributes_for :meter_instance
   accepts_nested_attributes_for :volumes
 
   # Infrastructure Statuses: created, updated, deleted, disabled, verified_create, verified_update
   scope :to_be_created_or_updated, -> { where(:record_status.in => ['created','updated']) }
-  scope :enabled, ->{ where('meter_instance.enabled': true) }
+  #scope :enabled, ->{ where('meter_instance.enabled': true) }
 
   index({ record_status: 1 })
-  index({ 'meter_instance.enabled': 1 })
+  #index({ 'meter_instance.enabled': 1 })
 
 
   def total_server_count; @total_server_count ||= hosts.size; end
@@ -74,14 +74,14 @@ class Infrastructure
 
   def enabled?
     # Assumes 1:1 meter:infrastructure ratio
-    self.meter_instance.enabled
+    true #self.meter_instance.enabled
   end
 
   def disable
-    self.meter_instance.update_attribute('enabled', false)
+    #self.meter_instance.update_attribute('enabled', false)
   end
   def enable
-    self.meter_instance.update_attribute('enabled', true)
+    #self.meter_instance.update_attribute('enabled', true)
   end
 
   def submit_create(infrastructure_endpoint)
@@ -93,8 +93,8 @@ class Infrastructure
 
       if ( response and response.code == 200 )
         self.remote_id = response.remote_id
-        self.meter_instance = MeterInstance.find_or_create_in_uc6(infrastructure_name: name,
-                                                                  infrastructure_endpoint: "#{infrastructure_endpoint}/#{remote_id}")
+        #self.meter_instance = MeterInstance.find_or_create_in_uc6(infrastructure_name: name,
+        #                                                          infrastructure_endpoint: "#{infrastructure_endpoint}/#{remote_id}")
         self.update_attribute(:record_status, 'verified_create')  # record_status will be ignored by local_inventory class, so we need to update it "manually"
       else
         logger.error "Unable to create infrastructure in UC6 for #{name}"
@@ -109,8 +109,8 @@ class Infrastructure
       if ( me_as_json )
         # record_status will be ignored by local_inventory class, so we need to update it "manually"
         self.update_attributes(record_status: 'verified_create', remote_id: me_as_json['remote_id'])
-        self.meter_instance = MeterInstance.find_or_create_in_uc6(infrastructure_name: name,
-                                                                  infrastructure_endpoint: "#{infrastructure_endpoint}/#{remote_id}")
+        #self.meter_instance = MeterInstance.find_or_create_in_uc6(infrastructure_name: name,
+        #                                                          infrastructure_endpoint: "#{infrastructure_endpoint}/#{remote_id}")
       else
         logger.error "Could not retrieve remote_id from conflict response for infrastructure: #{infrastructure.name}"
       end

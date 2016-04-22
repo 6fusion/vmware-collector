@@ -2,13 +2,15 @@ require 'hyper_client'
 require 'matchable'
 require 'global_configuration'
 
+#TODO: REMOVE THIS CLASS
 class MeterInstance
   include Mongoid::Document
   include Mongoid::Timestamps
   include GlobalConfiguration
   include Matchable
 
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
   field :enabled, type: Boolean, default: true
   field :name, type: String
   field :status, type: String, default: 'online'
