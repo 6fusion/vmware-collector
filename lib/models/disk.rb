@@ -5,7 +5,8 @@ class Disk
   include Mongoid::Timestamps
   include Matchable
 
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
   field :platform_id, type: String
   field :record_status, type: String
   field :name, type: String
@@ -48,7 +49,7 @@ class Disk
     {
       "id": remote_id,
       "name": name,
-      "maximum_size_bytes": size ? size : 0, # Default to 0 if nil, otherwise API throws error
+      "storage_bytes": size ? size : 0, # Default to 0 if nil, otherwise API throws error
       "kind": type
     }
   end

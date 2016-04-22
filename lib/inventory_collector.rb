@@ -66,6 +66,7 @@ class InventoryCollector
 
               machine = Machine.build_from_vsphere_vm(os.machine_properties)
               machine.infrastructure_platform_id = @infrastructure.platform_id
+              machine.infrastructure_remote_id = @infrastructure.remote_id
 
               machine.inventory_at = time_to_query
 

@@ -13,7 +13,8 @@ class PlatformRemoteId
   # remote_id is the disk's remote_id
 
   field :platform_key, type: String # Points to remote_id for the platform_key path
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
 
   index({ platform_key: 1 }, { unique: true })
 
