@@ -2,8 +2,8 @@ require 'hyper_client'
 require 'matchable'
 require 'global_configuration'
 
-#TODO: REMOVE THIS CLASS
-class MeterInstance
+#TODO: REMOVE THIS CLASS (for now we only changed its name)
+class MeterInstances
   include Mongoid::Document
   include Mongoid::Timestamps
   include GlobalConfiguration

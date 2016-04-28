@@ -7,9 +7,14 @@ require 'global_configuration'
 require 'logging'
 require 'signal_handler'
 require 'uc6_connector'
+require 'collector_registration'
 
 include Logging
 include SignalHandler
+
+registration = CollectorRegistration.new
+registration.configure_uc6
+#registration.configure_vsphere
 
 Thread::abort_on_exception = true
 

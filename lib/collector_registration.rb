@@ -123,12 +123,12 @@ class CollectorRegistration
 
   def retrieve_organization_name
     hyper_client = HyperClient.new
-    url = "#{@configuration[:uc6_api_endpoint]}/organizations/#{@configuration[:uc6_organization_id]}.json"
-    unless @configuration.blank_value?(:uc6_organization_id)
+    if @configuration.present_value?(:uc6_organization_id)
+      url = "#{@configuration[:uc6_api_endpoint]}/organizations/#{@configuration[:uc6_organization_id]}.json"
       response = hyper_client.get(url)
-      result = JSON.parse(response)
-      if response && result["name"]
-        @configuration[:uc6_organization_name] = result["name"]
+      if response
+        result = response.json
+        @configuration[:uc6_organization_name] = result["name"] if result["name"]
       end
     end
   end
