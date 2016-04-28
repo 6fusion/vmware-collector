@@ -4,10 +4,13 @@ require 'global_configuration'
 require 'json'
 require 'logging'
 require 'rest_client_extensions'
+require 'vsphere_session'
+require 'metrics_collector'
 
 class CollectorRegistration
   include GlobalConfiguration
   include Logging
+  include VSphere
 
   EMAIL_REGEX = /\A([^@\s]+)@((?:[-a-z0-9]+\.)+[a-z]{2,})\Z/i
 
@@ -26,6 +29,39 @@ class CollectorRegistration
         logger.error "There is missing information on the configuration file"
         exit(1)
       end
+    end
+  end
+
+  def configure_vsphere
+    begin
+      return false unless can_connect?(:vsphere_host, 443)
+      if ( @configuration.vsphere_configured? )
+        Timeout::timeout(15) do
+          VSphere::refresh
+          session = VSphere::session
+          if ( session.serviceInstance.content.rootFolder )
+             if ( MetricsCollector::level_3_statistics_enabled? )
+	       logger.info "Succesful connected to vsphere"
+	       @configuration[:verified_vsphere_connection] = true
+	     else
+               logger.error 'vSphere level 3 statistics must be enabled at the 5-minute interval'
+	     end
+          else
+            logger.error 'Could not access vSphere rootFolder. Please verify the supplied credentials are correct and have sufficient access privileges.'
+          end
+        end
+      end
+    rescue Timeout::Error => e
+      logger.debug VSphere::session
+      logger.debug VSphere::session.inspect
+      logger.error 'Could not access vSphere: operation timed out.  Please verify the supplied access information.'
+    rescue OpenSSL::SSL::SSLError => e
+      logger.error 'Could not access vSphere: SSL verification error.'
+    rescue StandardError => e
+      logger.debug VSphere::session
+      logger.debug VSphere::session.inspect
+      logger.error 'Could not access vSphere. Please verify the supplied user has sufficient access privileges.'
+      false
     end
   end
 

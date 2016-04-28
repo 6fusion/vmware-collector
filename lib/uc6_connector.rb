@@ -35,7 +35,7 @@ class UC6Connector
                                                       max_threads: configuration[:uc6_api_threads],  # FIXME - 1 this
                                                       max_queue: configuration[:uc6_api_threads] + 1,
                                                       fallback_policy: :caller_runs)
- end
+  end
 
   def submit
     begin
@@ -168,36 +168,7 @@ class UC6Connector
   end
 
   def submit_infrastructure_creates
-    infrastructure_creates = Infrastructure.where(record_status: 'created')
-    if ( infrastructure_creates.size > 0 )
-      logger.info "Processing #{infrastructure_creates.size} new infrastructures for submission to UC6"
-    else
-      logger.debug 'No new infrastructures to submit to UC6'
-    end
-
-    @local_infrastructure_inventory = InfrastructureInventory.new(:name)
-
-    infrastructure_creates.each do |infrastructure|
-
-      infrastructure = infrastructure.submit_create(infrastructures_url)
-
-      if (infrastructure.remote_id)
-        @local_platform_remote_id_inventory["i:#{infrastructure.platform_id}"] = PlatformRemoteId.new(infrastructure: infrastructure.platform_id,
-                                                                                                      remote_id: infrastructure.remote_id)
-
-        @local_infrastructure_inventory[infrastructure.name] = infrastructure
-      else
-        logger.error "No remote id returned for #{infrastructure.name}"
-      end
-    end
-    # Batch save local inventories
-    @local_infrastructure_inventory.save
-    @local_platform_remote_id_inventory.save
-
-  end
-
-
-  def submit_infrastructure_creates
+    logger.info "On submit infrastructure creates"
     infrastructure_creates = Infrastructure.where(record_status: 'created')
     if ( infrastructure_creates.size > 0 )
       logger.info "Processing #{infrastructure_creates.size} new infrastructures for submission to UC6"

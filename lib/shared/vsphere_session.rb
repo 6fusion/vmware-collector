@@ -52,12 +52,10 @@ module VSphere
     def initialize
       logger = Logging::MeterLog.instance.logger
       logger.debug "Connecting to vSphere"
-      configuration.refresh
       @session = get_vsphere_session
     end
 
     def refresh
-      configuration.refresh
       @session = get_vsphere_session
     end
 
@@ -86,7 +84,7 @@ module VSphere
                                 user: configuration[:vsphere_user],
                                 password: configuration[:vsphere_password],
                                 insecure: configuration[:vsphere_ignore_ssl_errors],
-                                debug: configuration[:vsphere_debug] ) }
+                                debug: configuration[:vsphere_debug] )} 
       rescue Errno::ECONNREFUSED => e
         logger.fatal("Connection to vSphere refused: #{e.message}")
         logger.fatal(e.message)
