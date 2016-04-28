@@ -61,6 +61,17 @@ module GlobalConfiguration
     def configured?
       self[:verified_api_connection] && self[:verified_vsphere_connection]
     end
+   
+    def vsphere_configured?
+      errors = true
+      [:vsphere_host, :vsphere_user, :vsphere_password].each  do |attribute|
+        if blank_value?(attribute)
+          logger.info "#{attribute} is not set on the configuration file"
+          errors = false
+        end
+      end
+      errors
+    end
 
     def to_s
       "Configuration: \n" +
@@ -159,7 +170,6 @@ module GlobalConfiguration
                       uc6_meter_version: 'not set',
                       uc6_organization_id: 'not set',
                       uc6_organization_name: 'not set',
-                      uc6_infrastructure_id: 'not set',
                       uc6_meter_id: 'not set',
                       uc6_oauth_token: 'not set',
                       uc6_refresh_token: 'not set',
@@ -175,8 +185,7 @@ module GlobalConfiguration
                       verified_api_connection: false,
                       verified_vsphere_connection: false,
                       container_namespace: '6fusion',
-                      container_repository: 'vmware-collector',
-                      updated_credentials: false
+                      container_repository: 'vmware-collector'
                     }
     end
 
