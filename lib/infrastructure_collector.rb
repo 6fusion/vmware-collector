@@ -85,13 +85,6 @@ class InfrastructureCollector
       properties[:hosts] = @host_objects.select{|k|host_ids.include?(k)}.values
       properties[:networks] = properties[:network].map{|network| Network.new(name: network)} unless properties[:network].blank?
       properties[:volumes] = properties[:datastores].map{|ds_moref| Volume.new(@infrastructure_volumes[ds_moref])} unless properties[:datastores].blank?
-
-      if ( @local_inventory[platform_id].present? )
-        properties[:meter_instance] = @local_inventory[platform_id].meter_instance
-      else
-        properties[:meter_instance] = MeterInstance.find_or_initialize_by(name: "#{properties[:name]} meter")
-      end
-
       # If we find a datacenter - it's enabled. May need to rethink if we ever support disabling meters via the console
       properties[:meter_instance].enabled = true
 

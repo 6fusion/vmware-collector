@@ -23,6 +23,7 @@ class Infrastructure
   field :status, type: String, default: 'online'
   field :vcenter_server, type: String #!! hmmmm
   field :release_version, type: String, default: 'alpha'
+  field :meter_id, type: String
 
   embeds_many :hosts
   embeds_many :networks
@@ -90,10 +91,8 @@ class Infrastructure
       logger.info "Submitting #{name} to API for creation in UC6"
       self.tags = name if tags.blank?
       response = hyper_client.post(infrastructure_endpoint, api_format)
-
       if ( response and response.code == 200 )
-        self.remote_id = response.remote_id
-
+        self.remote_id = JSON.parse(response)["remote_id"]
         # TODO: see if we need this at this place
         self.enabled = 'true'
         self.release_version = configuration[:uc6_meter_version]
