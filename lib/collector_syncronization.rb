@@ -53,9 +53,7 @@ class CollectorSyncronization
   def collect_infrastructures
     logger.debug "On collect insfrastructures"
     infrastructures = Infrastructure.all
-    infrastructures.each{|inf|  logger.debug "Infrastructure = #{inf.to_json} \n\n"}
     InfrastructureCollector.new.run
-
     if Infrastructure.empty?
       logger.debug "No infrastructures discovered"
     else
@@ -91,7 +89,6 @@ class CollectorSyncronization
     response = hyper_client.get(url)
 
     if ( response.code == 200 )
-      remote_meter_instance = response.json
       @configuration[:uc6_proxy_password] = proxy
       @configuration[:vsphere_password] = vsphere
     else

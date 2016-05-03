@@ -86,8 +86,6 @@ class InfrastructureCollector
       properties[:networks] = properties[:network].map{|network| Network.new(name: network)} unless properties[:network].blank?
       properties[:volumes] = properties[:datastores].map{|ds_moref| Volume.new(@infrastructure_volumes[ds_moref])} unless properties[:datastores].blank?
       # If we find a datacenter - it's enabled. May need to rethink if we ever support disabling meters via the console
-      properties[:meter_instance].enabled = true
-
       properties.delete(:hostFolder)
       properties.delete(:network)
       properties.delete(:datastores) # Datastores from vSphere are referred to as 'volumes' in our domain
