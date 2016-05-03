@@ -23,7 +23,6 @@ class Infrastructure
   field :status, type: String, default: 'online'
   field :vcenter_server, type: String #!! hmmmm
   field :release_version, type: String, default: 'alpha'
-  field :meter_id, type: String
 
   embeds_many :hosts
   embeds_many :networks
@@ -171,5 +170,4 @@ class Infrastructure
       volumes: self.volumes.map{|v| v.api_format}
     }
   end
-
 end
