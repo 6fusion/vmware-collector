@@ -90,10 +90,8 @@ class Infrastructure
       logger.info "Submitting #{name} to API for creation in UC6"
       self.tags = name if tags.blank?
       response = hyper_client.post(infrastructure_endpoint, api_format)
-
       if ( response and response.code == 200 )
-        self.remote_id = response.remote_id
-
+        self.remote_id = JSON.parse(response)["remote_id"]
         # TODO: see if we need this at this place
         self.enabled = 'true'
         self.release_version = configuration[:uc6_meter_version]
@@ -172,5 +170,4 @@ class Infrastructure
       volumes: self.volumes.map{|v| v.api_format}
     }
   end
-
 end
