@@ -46,7 +46,7 @@ class Nic
     {
       "id": remote_id,
       "name": name,
-      "kind": kind,
+      "kind": kind.upcase,
       "ip_address": ip_address,
       "mac_address": mac_address
     }

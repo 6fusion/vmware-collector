@@ -49,7 +49,7 @@ class Disk
     {
       "id": remote_id,
       "name": name,
-      "maximum_size_bytes": size ? size : 0, # Default to 0 if nil, otherwise API throws error
+      "storage_bytes": size ? size : 0, # Default to 0 if nil, otherwise API throws error
       "kind": type
     }
   end
