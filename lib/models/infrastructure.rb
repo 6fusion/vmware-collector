@@ -91,7 +91,7 @@ class Infrastructure
       self.tags = name if tags.blank?
       response = hyper_client.post(infrastructure_endpoint, api_format)
       if ( response and response.code == 200 )
-        self.remote_id = JSON.parse(response)["remote_id"]
+        self.remote_id = JSON.parse(response)["id"]
         # TODO: see if we need this at this place
         self.enabled = 'true'
         self.release_version = configuration[:uc6_meter_version]

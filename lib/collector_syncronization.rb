@@ -86,7 +86,6 @@ class CollectorSyncronization
   def collect_machine_inventory
     time_to_query = Time.now.truncated
     inventoried_timestamp = InventoriedTimestamp.find_or_create_by(inventory_at: time_to_query)
-    logger.debug "COLLECT MACHINE INVENTORY \n\n #{Infrastructure.enabled}\n\n\n"
     Infrastructure.enabled.each do |infrastructure|
       logger.info "Collecting inventory for #{infrastructure.name}"
       begin

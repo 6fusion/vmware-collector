@@ -12,8 +12,8 @@ module UC6UrlGenerator
   end
 
   # !!!! For consistency, make this take the infrastructure object and get the remote_id using prid
-  def infrastructure_machines_url(infrastructure_id)
-    "#{infrastructures_url}/#{infrastructure_id}/machines"
+  def infrastructure_machines_url(infrastructure_id,organization_id)
+    "#{configuration[:uc6_api_endpoint]}/machines.json?infrastructure_id=#{infrastructure_id}&organization_id=#{organization_id}"
   end
 
   def infrastructure_machine_url(infrastructure_id, machine_id)

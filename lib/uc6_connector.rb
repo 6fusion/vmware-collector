@@ -181,7 +181,6 @@ class UC6Connector
     infrastructure_creates.each do |infrastructure|
 
       infrastructure = infrastructure.submit_create(infrastructures_url)
-
       if (infrastructure.remote_id)
         @local_platform_remote_id_inventory["i:#{infrastructure.platform_id}"] = PlatformRemoteId.new(infrastructure: infrastructure.platform_id,
                                                                                                       remote_id: infrastructure.remote_id)
@@ -587,8 +586,7 @@ class UC6Connector
 
   def retrieve_machines(infrastructure)
     machines_by_platform_id = Hash.new
-
-    machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure.remote_id), {fields: 'remote_id'})
+    machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure.remote_id, configuration[:uc6_organization_id]))
     machines_json.each do |json|
       remote_id = json['remote_id']
       response = @hyper_client.get(infrastructure_machine_url(infrastructure.remote_id, remote_id) + ".json", {expand: 'disks,nics'})
