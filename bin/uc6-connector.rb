@@ -8,16 +8,16 @@ require 'logging'
 require 'signal_handler'
 require 'uc6_connector'
 require 'collector_registration'
-
+require 'collector_syncronization'
 include Logging
 include SignalHandler
 
+Thread::abort_on_exception = true
 registration = CollectorRegistration.new
 registration.configure_uc6
-#registration.configure_vsphere
-
-Thread::abort_on_exception = true
-
+registration.configure_vsphere
+sync = CollectorSyncronization.new
+sync.sync_data
 if ( ! GlobalConfiguration::GlobalConfig.instance.configured? )
   logger.info "UC6 connector has not been configured. Please configure using the registration wizard."
   exit(0)

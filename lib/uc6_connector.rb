@@ -257,8 +257,8 @@ class UC6Connector
             created_machine.update_attribute(:record_status, 'updated')
             next
           end
-
-          submit_url = infrastructure_machines_url(infrastructure_prid.remote_id)
+          
+          submit_url = machines_creation_url(infrastructure_prid.remote_id)
           created_machine.submit_create(submit_url)
 
           if created_machine.record_status == 'verified_create'

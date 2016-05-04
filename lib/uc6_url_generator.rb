@@ -16,6 +16,14 @@ module UC6UrlGenerator
     "#{configuration[:uc6_api_endpoint]}/machines.json?infrastructure_id=#{infrastructure_id}&organization_id=#{organization_id}"
   end
 
+  def retrieve_machine(machine_remote_id)
+    "#{configuration[:uc6_api_endpoint]}/machines/#{machine_remote_id}.json"
+  end
+
+  def machines_creation_url(infrastructure_id)
+    "#{configuration[:uc6_api_endpoint]}/infrastructures/#{infrastructure_id}/machines.json"
+  end
+
   def infrastructure_machine_url(infrastructure_id, machine_id)
     "#{infrastructure_machines_url(infrastructure_id)}/#{machine_id}"
   end
