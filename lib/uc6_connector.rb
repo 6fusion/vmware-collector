@@ -68,8 +68,10 @@ class UC6Connector
   def initialize_platform_ids
     Infrastructure.enabled.each do |infrastructure|
       local_inventory = MachineInventory.new(infrastructure)
+      logger.info "LOCAL INVENTORY => #{local_inventory.inspect}\n\n"
       uc6_inventory = retrieve_machines(infrastructure){|msg| yield msg if block_given? } #this is so the registration wizard can scroll names as they're retrieved, I think
       local_inventory.each do |platform_id, local_machine|
+        logger.debug "UC6 INVENTORY => #{uc6_inventory} \n\n platform_id => #{platform_id}\n\n"
         if ( uc6_inventory.has_key?(platform_id) )
           #!! if the machine exists in UC6, we need to get its status set to something other than 'created', so we don't create it again
           #  updated is good because if there are changes locally, we'll still push them up
@@ -91,6 +93,9 @@ class UC6Connector
 
           # Need to call #to_a on Mongoid collection to use find, otherwise doesn't work correctly
           # Need to map by name, only piece of info in UC6 that can use to map with VSphere result
+          logger.debug "UC6_MACHINE => #{uc6_machine.inspect}\n\n"
+          logger.debug "Local machines disks =>#{local_machine.disks.inspect}\n\n"
+          logger.debug "Local machines nics =>#{local_machine.nics.inspect}\n\n"
           local_machine.disks.each do |local_disk|
             if ( remote_disk = uc6_machine.disks.to_a.find{|md| md.name.eql?(local_disk.name)} )
               disk_key = "i:#{local_machine.infrastructure_platform_id}/" \
@@ -345,11 +350,12 @@ class UC6Connector
 
       updated_machines.each do |updated_machine|
         begin
+          logger.debug "Before inject_machine_disk_nic_remote_ids \n\n"
           updated_machine = inject_machine_disk_nic_remote_ids(updated_machine)
-
-          submit_url = machine_url(updated_machine)
-          submitted_machine = updated_machine.submit_update(submit_url)
-
+          logger.debug "Updated machine #{updated_machine.inspect} \n"
+          submit_url = machine_url(updated_machine) #check machine url method
+          submitted_machine = updated_machine.submit_update(submit_url)# retrieve_machine(updated_machine.remote_id)
+          logger.debug "submitted_machine.record_status => #{submitted_machine.record_status} \n\n"
           # Note: Successfully updated machines record_status changes from "updated" to "verified_update"
           if submitted_machine.record_status == 'verified_update'
             submitted_machine.save # Save status in mongo
@@ -427,7 +433,7 @@ class UC6Connector
 
     unless machine.remote_id
       machine_prid = @local_platform_remote_id_inventory[machine_platform_key]
-
+      logger.info "MACHINE PRID => #{machine_prid}\n\n"
       if machine_prid
         machine_remote_id = machine_prid.remote_id
         if !machine_remote_id
@@ -455,7 +461,7 @@ class UC6Connector
 
       disk_platform_key = machine_platform_key + "/d:#{d.platform_id}"
       disk_prid = @local_platform_remote_id_inventory[disk_platform_key]
-
+      logger.info "DISC PRID => #{disk_prid}\n\n"
       if disk_prid
         disk_remote_id = disk_prid.remote_id
         if !disk_remote_id
@@ -484,7 +490,7 @@ class UC6Connector
 
       nic_platform_key = machine_platform_key + "/n:#{n.platform_id}"
       nic_prid = @local_platform_remote_id_inventory[nic_platform_key]
-
+      logger.info "NIC PRID => #{nic_prid}\n\n"
       if nic_prid
         nic_remote_id = nic_prid.remote_id
         if !nic_remote_id
@@ -590,23 +596,24 @@ class UC6Connector
       response = @hyper_client.get(retrieve_machine(remote_id))
       if ( response.code == 200 )
         machine_json = JSON.parse(response)
+        logger.debug "\n\n\n MACHINE JSON = > #{machine_json}\n\n\n\n\n"
         machine = Machine.new(remote_id:     machine_json['id'],
                               name:          machine_json['name'],
-                              virtual_name:  machine_json['virtual_name'],
+                              virtual_name:  machine_json['virtual_name'], #CHECK THIS AS IN ON PREM THERE IS NO VIRTUAL NAME 
                               cpu_count:     machine_json['cpu_count'],
-                              cpu_speed_mhz: machine_json['cpu_speed_mhz'],
-                              memory_bytes:  machine_json['maximum_memory_bytes'],
+                              cpu_speed_mhz: machine_json['cpu_speed_hz'],
+                              memory_bytes:  machine_json['memory_bytes'],
                               status:        machine_json['status'])
         yield "Retrieved #{machine.name}" if block_given?
         disks_json = machine_json['embedded']['disks']
-        machine.disks = disks_json.map{|dj| Disk.new(remote_id: dj['remote_id'],
+        machine.disks = disks_json.map{|dj| Disk.new(remote_id: dj['id'],
                                                      name: dj['name'],
-                                                     platform_id: dj['uuid'],
+                                                     platform_id: dj['uuid'], #THIS DOES NOT COME ANYMORE FROM ON PREM
                                                      type: 'Disk',
-                                                     size: dj['maximu_size_bytes']) }
+                                                     size: dj['storage_bytes']) }
 
         nics_json = machine_json['embedded']['nics']
-        machine.nics = nics_json.map{|nj| Nic.new(remote_id: nj['remote_id'],
+        machine.nics = nics_json.map{|nj| Nic.new(remote_id: nj['id'],
                                                   name: nj['name'],
                                                   kind: nj['kind'].eql?(0) ? 'lan' : 'wan',
                                                   ip_address: nj['ip_address'],
@@ -617,7 +624,7 @@ class UC6Connector
         #!!
       end
     end
-
+    logger.debug "machines_by_platform_id = > #{machines_by_platform_id.inspect} \n\n"
     machines_by_platform_id
   end
 
