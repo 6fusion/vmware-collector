@@ -67,10 +67,8 @@ class UC6Connector
   # Used by the registration process to update platform_remote_id with machine remote IDs (if they exist in UC6 prior to meter registration)
   def initialize_platform_ids
     Infrastructure.enabled.each do |infrastructure|
-
       local_inventory = MachineInventory.new(infrastructure)
       uc6_inventory = retrieve_machines(infrastructure){|msg| yield msg if block_given? } #this is so the registration wizard can scroll names as they're retrieved, I think
-
       local_inventory.each do |platform_id, local_machine|
         if ( uc6_inventory.has_key?(platform_id) )
           #!! if the machine exists in UC6, we need to get its status set to something other than 'created', so we don't create it again
@@ -588,11 +586,11 @@ class UC6Connector
     machines_by_platform_id = Hash.new
     machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure.remote_id, configuration[:uc6_organization_id]))
     machines_json.each do |json|
-      remote_id = json['remote_id']
-      response = @hyper_client.get(infrastructure_machine_url(infrastructure.remote_id, remote_id) + ".json", {expand: 'disks,nics'})
+      remote_id = json['id']
+      response = @hyper_client.get(retrieve_machine(remote_id))
       if ( response.code == 200 )
-        machine_json = response.json
-        machine = Machine.new(remote_id:     machine_json['remote_id'],
+        machine_json = JSON.parse(response)
+        machine = Machine.new(remote_id:     machine_json['id'],
                               name:          machine_json['name'],
                               virtual_name:  machine_json['virtual_name'],
                               cpu_count:     machine_json['cpu_count'],

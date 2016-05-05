@@ -4,7 +4,7 @@ module RestClient::Response
     json['id']
   end
 
-  def json
+  def json #NEED TO CHECK THIS! There is no more any remote_id
     #!! need a rescue around this
     j = JSON::parse(body)
     # Insert remote IDs
