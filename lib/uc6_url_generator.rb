@@ -25,7 +25,7 @@ module UC6UrlGenerator
   end
 
   def infrastructure_machine_url(infrastructure_id, machine_id)
-    "#{infrastructure_machines_url(infrastructure_id)}/#{machine_id}"
+    "#{infrastructure_machines_url(infrastructure_id, configuration[:uc6_organization_id])}/#{machine_id}"
   end
 
   def infrastructure_machine_readings_url(infrastructure_id, machine_id)
@@ -33,6 +33,7 @@ module UC6UrlGenerator
   end
 
   def machine_url(machine)
+    logger.info "@local_platform_remote_id_inventory => #{@local_platform_remote_id_inventory} \n\n MACHINE #{machine.inspect}"
     infrastructure_prid = @local_platform_remote_id_inventory["i:#{machine.infrastructure_platform_id}"]
     machine_prid = @local_platform_remote_id_inventory["i:#{machine.infrastructure_platform_id}/m:#{machine.platform_id}"]
     raise "Could construct API url for #{machine.platform_id}" unless machine_prid

@@ -134,15 +134,16 @@ class HyperClient
     http_req = initial_page_url.start_with?('http')
 
     response = get(initial_page_url, opts)
-
-    all_json_data.concat(response.json['embedded'].values.flatten)
-    while response.json['_links']['next']
-      next_results_href = response.json['_links']['next']['href']
+    response_json = JSON.parse(response)
+    all_json_data.concat(response_json['embedded'].values.flatten)
+    while response_json['_links']['next']
+      next_results_href = response_json['_links']['next']['href']
       # When in development, sometimes need http and links are all https
       next_results_href.sub!('https','http') if http_req && Rails.env.eql?('development')
 
       response = get(next_results_href) # original opts are included in the returned "next" url
-      all_json_data.concat(response.json['embedded'].first[1])
+      response_json = JSON.parse(response)
+      all_json_data.concat(response_json['embedded'].first[1])
     end
 
     all_json_data

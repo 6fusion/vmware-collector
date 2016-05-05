@@ -12,13 +12,19 @@ require 'local_inventory'
 require 'logging'
 require 'signal_handler'
 require 'vsphere_session'
+require 'collector_registration'
+require 'collector_syncronization'
 
 
 include Logging
 include SignalHandler
 
 Thread::abort_on_exception = true
-
+registration = CollectorRegistration.new
+registration.configure_uc6
+registration.configure_vsphere
+sync = CollectorSyncronization.new
+sync.sync_data
 if ( ! GlobalConfiguration::GlobalConfig.instance.configured? )
   logger.info "Metrics collector has not been configured. Please configure using the registration wizard."
   exit(0)

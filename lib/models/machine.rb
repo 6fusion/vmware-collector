@@ -176,7 +176,7 @@ class Machine
        "virtual_name": platform_id,
        "cpu_count": cpu_count,
        "cpu_speed_hz": cpu_speed_mhz, #CHECK THIS IF WE NEED TO CONVERT IT TO HZ
-       "maximum_memory_bytes": memory_bytes,
+       "memory_bytes": memory_bytes,
        "status": status,
        "infrastructure_id": infrastructure_remote_id
     }
