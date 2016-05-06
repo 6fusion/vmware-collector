@@ -353,8 +353,8 @@ class UC6Connector
           logger.debug "Before inject_machine_disk_nic_remote_ids \n\n"
           updated_machine = inject_machine_disk_nic_remote_ids(updated_machine)
           logger.debug "Updated machine #{updated_machine.inspect} \n"
-          submit_url = machine_url(updated_machine) #check machine url method
-          submitted_machine = updated_machine.submit_update(submit_url)# retrieve_machine(updated_machine.remote_id)
+          submit_url = machine_url(updated_machine) 
+          submitted_machine = updated_machine.submit_update(submit_url)
           logger.debug "submitted_machine.record_status => #{submitted_machine.record_status} \n\n"
           # Note: Successfully updated machines record_status changes from "updated" to "verified_update"
           if submitted_machine.record_status == 'verified_update'

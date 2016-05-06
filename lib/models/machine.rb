@@ -30,7 +30,7 @@ class Machine
   field :metrics,       type: Hash
   field :submitted_at,  type: DateTime
 
-  field :infrastructure_remote_id, type: Integer
+  field :infrastructure_remote_id, type: String
   field :infrastructure_platform_id, type: String
 
   embeds_many :disks
@@ -278,9 +278,10 @@ class Machine
     logger.info "Updating machine #{name} in UC6 API"
     begin
       response = hyper_client.put(machine_endpoint, api_format)
-      if (response.present? and response.code == 200 and response.remote_id.present?)
+      response_json = JSON.parse(response)
+      if (response.present? and response.code == 200 and response_json['id'].present?)
         machine_with_disks_nics_response = hyper_client.get(machine_endpoint, {"expand": "disks,nics"})
-        response_json = machine_with_disks_nics_response.json # Note: response#json populates remote_ids
+        response_json = JSON.parse(machine_with_disks_nics_response) # Note: response#json populates remote_ids
 
         response_disks_json = response_json["embedded"]["disks"]
         assign_disk_remote_ids(response_disks_json) if response_disks_json

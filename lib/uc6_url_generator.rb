@@ -39,7 +39,7 @@ module UC6UrlGenerator
     raise "Could construct API url for #{machine.platform_id}" unless machine_prid
     raise "No remote_id for machine: #{machine.platform_id}" unless machine_prid.remote_id
 
-    "#{infrastructure_machines_url(infrastructure_prid.remote_id)}/#{machine_prid.remote_id}"
+    retrieve_machine(machine.remote_id)
   end
 
   def disk_url(disk)
