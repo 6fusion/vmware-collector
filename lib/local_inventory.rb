@@ -34,7 +34,9 @@ class MongoHash < Hash
     @klass = klass
     @key = key
     # Fill in hash values
+    logger.debug "Filtered Items #{filtered_items}\n\n\n"
     filtered_items.each {|item|
+      logger.debug "ITEM => #{item.inspect}\n";
       self.store(item[@key],item) }
     # Initialize some state
     @initial_inventory = keys
@@ -128,7 +130,7 @@ end
 class MachineInventory < MongoHash
   require 'machine'
 
-  def initialize(infrastructure=nil, key=:platform_id)
+  def initialize(infrastructure=nil, key=:name)
     @infrastructure = infrastructure
     super(Machine,key)
   end
@@ -144,7 +146,7 @@ class MachineInventory < MongoHash
     filtered_machines
   end
 
-  def delete(platform_id)
+  def delete(platform_id) #NOT SURE ABOUT THIS
     machine = fetch(platform_id, nil)
     if ( machine )
       machine.status = 'deleted'
