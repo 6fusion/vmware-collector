@@ -191,14 +191,15 @@ class Machine
     machine_api_format
   end
 
-  def submit_create(machines_endpoint)
+  def submit_create
+    logger.info "================================ CURRENT ELEMENT #{self.inspect}"
     logger.info "Creating machine #{name} in UC6 API"
     begin
       # Avoid timeout issue: Successfully creates in UC6, but times out before returning 200 with remote_id
       # Handle these failed creates the next time uc6_connector runs
       self.update_attribute(:record_status, 'failed_create') # Gets set to 'verified_create' if successful
 
-      response = hyper_client.post(machines_endpoint, api_format)
+      response = hyper_client.post(machines_post_url(infrastructure_id: infrastructure_remote_id), api_format)
       if (response and response.code == 200 and JSON.parse(response)['id'])
         self.remote_id = JSON.parse(response)['id']
 
@@ -211,7 +212,7 @@ class Machine
       end
     rescue RestClient::Conflict => e
       logger.warn "Machine submission generated a conflict in UC6; attempting to update local instance to match"
-      machines = hyper_client.get_all_resources(machines_endpoint)
+      machines = hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure_remote_id))
       me_as_json = machines.find{|machine| machine['name'].eql?(name) }
 
       if ( me_as_json )
