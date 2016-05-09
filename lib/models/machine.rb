@@ -21,7 +21,7 @@ class Machine
   field :inventory_at,  type: DateTime
   field :name,          type: String            # A bunch of bad defaults, since the UC6 API doesn't support nils
   field :os,            type: String,   default: ""
-  #field :virtual_name,  type: String,   default: ""
+  field :virtual_name,  type: String,   default: ""
   field :cpu_count,     type: Integer,  default: 1  # Console requires a value for count and mhz > 0
   field :cpu_speed_mhz, type: Integer,  default: 1
   field :memory_bytes,  type: Integer,  default: 0
@@ -78,7 +78,7 @@ class Machine
     { platform_id:  :platform_id,
       name:         :name,
       os:           :'config.guestFullName',
-      #virtual_name: :platform_id,
+      virtual_name: :platform_id,
       cpu_count:    :'summary.config.numCpu',
       memory_bytes: :'summary.config.memorySizeMB',
       status:       :'summary.runtime.powerState'
@@ -173,7 +173,7 @@ class Machine
   def api_format
     machine_api_format = {
        "name": name,
-       #"virtual_name": platform_id,
+       "custom_id": platform_id,
        "cpu_count": cpu_count,
        "cpu_speed_hz": cpu_speed_mhz, #CHECK THIS IF WE NEED TO CONVERT IT TO HZ
        "memory_bytes": memory_bytes,
@@ -235,8 +235,8 @@ class Machine
 
     logger.info "Checking UC6 if #{self.platform_id} was already submitted"
     begin
-      #and_query_json = { virtual_name: { eq: self.platform_id } }.to_json
-      response = hyper_client.get(infrastructure_machines_endpoint)# , {"and": and_query_json} NEED TO CHECK THIS
+      and_query_json = { custom_id: { eq: self.platform_id } }.to_json
+      response = hyper_client.get(infrastructure_machines_endpoint, {"and": and_query_json})# NEED TO CHECK THIS
 
       if response and response.code == 200
         response_machines_json = JSON.parse(response)["embedded"]["machines"]

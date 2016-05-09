@@ -586,7 +586,7 @@ class UC6Connector
         logger.debug "\n\n\n MACHINE JSON = > #{machine_json}\n\n\n\n\n"
         machine = Machine.new(remote_id:     machine_json['id'],
                               name:          machine_json['name'],
-                              #virtual_name:  machine_json['virtual_name'], #CHECK THIS AS IN ON PREM THERE IS NO VIRTUAL NAME 
+                              virtual_name:  machine_json['custom_id'], #CHECK THIS AS IN ON PREM THERE IS NO VIRTUAL NAME 
                               cpu_count:     machine_json['cpu_count'],
                               cpu_speed_mhz: machine_json['cpu_speed_hz'],
                               memory_bytes:  machine_json['memory_bytes'],
@@ -606,7 +606,7 @@ class UC6Connector
                                                   ip_address: nj['ip_address'],
                                                   mac_address: nj['mac_address'])}
 
-        machines_by_platform_id[machine_json['name']] = machine #CHECK if this is uniq
+        machines_by_platform_id[machine_json['custom_id']] = machine #CHECK if this is uniq
       else
         #!!
       end
@@ -628,7 +628,7 @@ class UC6Connector
         properties = {
           remote_id: m['remote_id'],
           name: m['name'],
-          #virtual_name: m['virtual_name'],
+          virtual_name: m['custom_id'],
           cpu_count: m['cpu_count'],
           cpu_speed_mhz: m['cpu_speed_mhz'],
           memory_bytes: m['maximum_memory_bytes'],
