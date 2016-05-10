@@ -9,6 +9,7 @@ gem 'oauth2',          '~>1.0'
 gem 'rbvmomi',         '~>1.8'
 gem 'rest-client',     '~>1.8'
 gem 'rufus-scheduler', '~>3.0'
+gem 'rake'
 
 # admin console requirements
 gem 'docker-api', require: 'docker'

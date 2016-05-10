@@ -5,7 +5,8 @@ class Reading
   include Mongoid::Timestamps
   include Logging
 
-  field :reading_at, type: DateTime # Expires field
+  field :start_time, type: DateTime
+  field :end_time, type: DateTime # Expires field
   field :infrastructure_platform_id, type: String
   field :machine_platform_id, type: String
   field :record_status, type: String, default: 'created'
@@ -19,18 +20,18 @@ class Reading
 
   # Don't want to expire based on submitted, since if problem with UC6Connector
   # The meter-database can exceed storage limits and crash all services
-  index({reading_at: 1}, {expire_after_seconds: 30.hours})
+  index({end_time: 1}, {expire_after_seconds: 30.hours})
 
   scope :to_be_created, -> { where(record_status: 'created') }
 
-  def self.build_from_result(result, machine)
+  def self.build_from_result(result, machine, reading_timestamps)
 
     reading = Reading.new
     machine_metrics = Hash.new
 
     reading.machine_platform_id = machine.platform_id
-    reading.reading_at = result[:sampleInfo].first.timestamp  if ( result[:sampleInfo] and result[:sampleInfo].first )
-
+    reading.end_time = result[:sampleInfo].first.timestamp  if ( result[:sampleInfo] and result[:sampleInfo].first )
+    reading.start_time = reading_timestamps[:start_time]
     reading.infrastructure_platform_id = machine.infrastructure_platform_id
 
     result[:metrics].select{|k,v| machine_properties.include?(k[0])}.each{|k,v|

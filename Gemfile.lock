@@ -121,6 +121,7 @@ GEM
     rack (1.6.4)
     rack-test (0.6.3)
       rack (>= 1.0)
+    rake (10.4.2)
     rbvmomi (1.8.2)
       builder
       nokogiri (>= 1.4.1)
@@ -195,6 +196,7 @@ DEPENDENCIES
   nokogiri (= 1.6.6.2)
   oauth2 (~> 1.0)
   pry
+  rake
   rbvmomi (~> 1.8)
   rest-client (~> 1.8)
   roo-google
@@ -205,4 +207,4 @@ DEPENDENCIES
   tzinfo-data
 
 BUNDLED WITH
-   1.11.2
+   1.12.1

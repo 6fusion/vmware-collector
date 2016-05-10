@@ -6,6 +6,6 @@ module URI
   end
 
   def parameters
-    query.nil? ? {} : Hash[ *(URI::decode_www_form(query).map{|a| [a[0].to_sym, a[1] ]}).flatten ]
+    query.nil? ? {} : Hash[*(URI.decode_www_form(query).map { |a| [a[0].to_sym, a[1]] }).flatten]
   end
 end

@@ -5,7 +5,6 @@ module RestClient::Response
 
   def json
     # IMPORTANT: This will raise an exception if the body is not in JSON format
-    JSON::parse(body)
+    JSON.parse(body)
   end
-
 end

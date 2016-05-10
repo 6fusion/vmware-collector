@@ -1,27 +1,32 @@
 #!/usr/bin/env ruby -W0
 require 'bundler'
 Bundler.require(:default, ENV['METER_ENV'] || :development)
-$:.unshift 'lib', 'lib/shared', 'lib/models'
+$:.unshift 'lib', 'lib/shared', 'lib/models', 'lib/modules'
 require 'timeout'
+require 'rake'
 
 require 'global_configuration'
 require 'infrastructure'
 require 'inventory_collector'
 require 'local_inventory'
 require 'logging'
+require 'initialize_collector_configuration'
 require 'signal_handler'
 require 'vsphere_session'
-
+require 'collector_registration'
+require 'collector_syncronization'
+require 'vmware_configuration'
 include Logging
 include GlobalConfiguration
 include SignalHandler
+include InitializeCollectorConfiguration
 
 require 'objspace'
 
-Thread::abort_on_exception = true
+init_configuration
 
 def main
-  if ( ! configuration.configured? )
+  if ( !VmwareConfiguration.first.configured )
     logger.info "Inventory collector has not been configured. Please configure using the registration wizard."
     exit(0)
   end
@@ -102,14 +107,18 @@ end
 def active_collectors
   # If a data center is passed into the container, only hit that one. Otherwise, intstantiate a collector
   #  for each active infrastructure/datacenter/meter
-  infrastructures = configuration[:data_center] ?
+  logger.info "InfrastructureInventory => #{(InfrastructureInventory.new).inspect}\n\n"
+  infrastructures = configuration.present_value?(:data_center) ?
                       InfrastructureInventory.new.select{|key,inf| inf.name.eql?(configuration[:data_center])} :
                       InfrastructureInventory.new
+
+  logger.info "INFRASTRUCTURES => #{infrastructures.inspect}"
   infrastructures.each_value {|infrastructure|
     infrastructure.enabled? ? activate(infrastructure) : deactivate(infrastructure) }
   # Remove any that we know about, but are no longer returned by InfrastructureInventory (which filters out disabled)
   $collector_hash.each{|platform_id, collector|
-    deactivate(collector.infrastructure) unless infrastructures.has_key?(platform_id) }
+    deactivate(collector.infrastructure) unless infrastructures.has_key?(platform_id)
+  }
   queue = Queue.new
   $collector_hash.values.each{|collector| queue << collector }
   queue

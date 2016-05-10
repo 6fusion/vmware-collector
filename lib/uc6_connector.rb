@@ -10,13 +10,12 @@ require 'rbvmomi_extensions'
 require 'reading'
 require 'uri_enhancements'
 require 'uc6_url_generator'
-
 # Initialize Data UC6 -> Local Mongo
-  # logger.info 'Initializing infrastructures data'
-  # load_infrastructure_data
+# logger.info 'Initializing infrastructures data'
+# load_infrastructure_data
 
-  # logger.info 'Initializing machines data'
-  # load_machines_data
+# logger.info 'Initializing machines data'
+# load_machines_data
 
 Thread.abort_on_exception = true
 
@@ -32,35 +31,36 @@ class UC6Connector
     @local_infrastructure_inventory = InfrastructureInventory.new(:name)
     @local_platform_remote_id_inventory = PlatformRemoteIdInventory.new
     @thread_pool = Concurrent::ThreadPoolExecutor.new(min_threads: 1,
-                                                      max_threads: configuration[:uc6_api_threads],  # FIXME - 1 this
+                                                      max_threads: configuration[:uc6_api_threads], # FIXME: - 1 this
                                                       max_queue: configuration[:uc6_api_threads] + 1,
                                                       fallback_policy: :caller_runs)
   end
 
   def submit
-    begin
-      Mongoid::QueryCache.clear_cache  # rethink if we start using this in other places
-      submit_infrastructure_creates
-      handle_machine_failed_creates # Failed creates result from TimeOut errors; This must be BEFORE submit_machine_creates
-      submit_machine_creates
-      submit_reading_creates
-      submit_machine_deletes
-      submit_machine_updates # Currently handles Disk/Nic updates too
-      submit_machine_disk_and_nic_deletes # Combined to go through documents with either or both changes once
+    Mongoid::QueryCache.clear_cache # rethink if we start using this in other places
+    submit_infrastructure_creates
+    handle_machine_failed_creates # Failed creates result from TimeOut errors; This must be BEFORE submit_machine_creates
+    submit_machine_creates
+    submit_reading_creates
+    submit_machine_disk_and_nic_deletes # Combined to go through documents with either or both changes once
+    submit_machine_deletes
+    sleep(1) # Needed so that the status changed to deleted doesnt give error 422
+    submit_machine_updates
+
+      # Currently handles Disk/Nic updates too
       # block while thread pool finishes?
-    rescue RestClient::TooManyRequests => e
-      pause(Time.parse(e.response.headers[:x_rate_limit_reset]))
-      retry
-    rescue RestClient::ResourceNotFound => e  # Pause and retry if API is down and something 404s
-      pause(Time.now + 1.minute)
-      retry
-    rescue RuntimeError => e
-      if ( md = e.message.match(/No remote_id for machine: (.+)/) )
-        errored_machine = Machine.find(platform_id: md[1])
-        submit_machine_creates([errored_machine])
-      else
-        raise e
-      end
+  rescue RestClient::TooManyRequests => e
+    pause(Time.parse(e.response.headers[:x_rate_limit_reset]))
+    retry
+  rescue RestClient::ResourceNotFound => e # Pause and retry if API is down and something 404s
+    pause(Time.now + 1.minute)
+    retry
+  rescue RuntimeError => e
+    if (md = e.message.match(/No remote_id for machine: (.+)/))
+      errored_machine = Machine.find(platform_id: md[1])
+      submit_machine_creates([errored_machine])
+    else
+      raise e
     end
   end
 
@@ -68,60 +68,55 @@ class UC6Connector
   def initialize_platform_ids
     Infrastructure.enabled.each do |infrastructure|
       local_inventory = MachineInventory.new(infrastructure)
-      uc6_inventory = retrieve_machines(infrastructure){|msg| yield msg if block_given? } #this is so the registration wizard can scroll names as they're retrieved, I think
+      uc6_inventory = retrieve_machines(infrastructure) { |msg| yield msg if block_given? } # this is so the registration wizard can scroll names as they're retrieved, I think
       local_inventory.each do |platform_id, local_machine|
-        if ( uc6_inventory.has_key?(platform_id) )
-          #!! if the machine exists in UC6, we need to get its status set to something other than 'created', so we don't create it again
-          #  updated is good because if there are changes locally, we'll still push them up
-          #  However, this process needs to be batched, or more ideally, the UC6 inventory should be pulled down and
-          #  we compare and see what needs updating.
-          #        yield local_machine if block_given?
-          uc6_machine = uc6_inventory[local_machine.platform_id]
-          yield "Syncing #{local_machine.name}" if block_given?
+        next unless uc6_inventory.key?(platform_id)
+        # !! if the machine exists in UC6, we need to get its status set to something other than 'created', so we don't create it again
+        #  updated is good because if there are changes locally, we'll still push them up
+        #  However, this process needs to be batched, or more ideally, the UC6 inventory should be pulled down and
+        #  we compare and see what needs updating.
+        #        yield local_machine if block_given?
+        uc6_machine = uc6_inventory[local_machine.platform_id]
+        yield "Syncing #{local_machine.name}" if block_given?
 
-          unless ( @local_platform_remote_id_inventory["i:#{local_machine.infrastructure_platform_id}/m:#{local_machine.platform_id}"].present? )
-            #!! check equality first
-            local_machine.update_attribute(:record_status, 'updated')
+        unless @local_platform_remote_id_inventory["i:#{local_machine.infrastructure_platform_id}/m:#{local_machine.platform_id}"].present?
+          # !! check equality first
+          local_machine.update_attribute(:record_status, 'updated')
 
-            @local_platform_remote_id_inventory["i:#{local_machine.infrastructure_platform_id}/m:#{local_machine.platform_id}"] =
+          @local_platform_remote_id_inventory["i:#{local_machine.infrastructure_platform_id}/m:#{local_machine.platform_id}"] =
               PlatformRemoteId.new(infrastructure: local_machine.infrastructure_platform_id,
                                    machine: local_machine.platform_id,
-                                   remote_id: uc6_machine.remote_id )
-          end
+                                   remote_id: uc6_machine.remote_id)
+        end
 
-          # Need to call #to_a on Mongoid collection to use find, otherwise doesn't work correctly
-          # Need to map by name, only piece of info in UC6 that can use to map with VSphere result
-          local_machine.disks.each do |local_disk|
-            if ( remote_disk = uc6_machine.disks.to_a.find{|md| md.name.eql?(local_disk.name)} )
-              disk_key = "i:#{local_machine.infrastructure_platform_id}/" \
-                         "m:#{local_machine.platform_id}/" \
-                         "d:#{local_disk.platform_id}"
-              unless ( @local_platform_remote_id_inventory[disk_key].present? )
-                @local_platform_remote_id_inventory[disk_key] =
-                  PlatformRemoteId.new(infrastructure: local_machine.infrastructure_platform_id,
-                                       machine: local_machine.platform_id,
-                                       disk: local_disk.platform_id,
-                                       remote_id: remote_disk.remote_id)
-              end
-            end
-          end
+        # Need to call #to_a on Mongoid collection to use find, otherwise doesn't work correctly
+        # Need to map by name, only piece of info in UC6 that can use to map with VSphere result
+        local_machine.disks.each do |local_disk|
+          next unless (remote_disk = uc6_machine.disks.to_a.find { |md| md.name.eql?(local_disk.name) })
+          disk_key = "i:#{local_machine.infrastructure_platform_id}/" \
+                     "m:#{local_machine.platform_id}/" \
+                     "d:#{local_disk.platform_id}"
+          next if @local_platform_remote_id_inventory[disk_key].present?
+          @local_platform_remote_id_inventory[disk_key] =
+              PlatformRemoteId.new(infrastructure: local_machine.infrastructure_platform_id,
+                                   machine: local_machine.platform_id,
+                                   disk: local_disk.platform_id,
+                                   remote_id: remote_disk.remote_id)
+        end
 
-          #  to call #to_a on Mongoid collection to use find, otherwise doesn't work correctly
-          # Need to map by name, only piece of info in UC6 that can use to map with VSphere result
-          local_machine.nics.each do |local_nic|
-            if ( remote_nic = uc6_machine.nics.to_a.find{|md| md.name.eql?(local_nic.name)} )
-              nic_key = "i:#{local_machine.infrastructure_platform_id}/" \
-                        "m:#{local_machine.platform_id}/" \
-                        "n:#{local_nic.platform_id}"
-              unless ( @local_platform_remote_id_inventory[nic_key].present? )
-                @local_platform_remote_id_inventory[nic_key] =
-                  PlatformRemoteId.new(infrastructure: local_machine.infrastructure_platform_id,
-                                       machine: local_machine.platform_id,
-                                       nic: local_nic.platform_id,
-                                       remote_id: remote_nic.remote_id)
-              end
-            end
-          end
+        #  to call #to_a on Mongoid collection to use find, otherwise doesn't work correctly
+        # Need to map by name, only piece of info in UC6 that can use to map with VSphere result
+        local_machine.nics.each do |local_nic|
+          next unless (remote_nic = uc6_machine.nics.to_a.find { |md| md.name.eql?(local_nic.name) })
+          nic_key = "i:#{local_machine.infrastructure_platform_id}/" \
+                    "m:#{local_machine.platform_id}/" \
+                    "n:#{local_nic.platform_id}"
+          next if @local_platform_remote_id_inventory[nic_key].present?
+          @local_platform_remote_id_inventory[nic_key] =
+              PlatformRemoteId.new(infrastructure: local_machine.infrastructure_platform_id,
+                                   machine: local_machine.platform_id,
+                                   nic: local_nic.platform_id,
+                                   remote_id: remote_nic.remote_id)
         end
       end
     end
@@ -131,7 +126,7 @@ class UC6Connector
 
   def submit_reading_creates
     queued = Reading.where(record_status: 'created').count
-    if ( queued == 0 )
+    if queued == 0
       logger.debug 'No readings queued for submission'
     else
       logger.info "Preparing to submit #{queued} readings"
@@ -148,12 +143,12 @@ class UC6Connector
           begin
             prep_and_post_reading(mr)
           rescue RestClient::TooManyRequests => e
-            # TODO Not great having this in two places, but the alternative would be figure out the TODO below
+            # TODO: Not great having this in two places, but the alternative would be figure out the TODO below
             #   and shutting down / reinitalizing the threadpool here
             pause(Time.parse(e.response.headers[:x_rate_limit_reset]))
           rescue StandardError => e
             logger.error "Raising #{e.class}: #{e.message}"
-            # TODO This doesn't seem to operate as desired; this seems to cause a jump to the "line" after the end of the "thread_pool do" code
+            # TODO: This doesn't seem to operate as desired; this seems to cause a jump to the "line" after the end of the "thread_pool do" code
             #  Exception handling in the main function doesn't seem to execute right away either; not till the end of machinereading.each
             Thread.main.raise e
           end
@@ -162,12 +157,11 @@ class UC6Connector
 
       logger.info "Completed submission of readings in #{Time.now - start} seconds"
     end
-
   end
 
   def submit_infrastructure_creates
     infrastructure_creates = Infrastructure.where(record_status: 'created')
-    if ( infrastructure_creates.size > 0 )
+    if !infrastructure_creates.empty?
       logger.info "Processing #{infrastructure_creates.size} new infrastructures for submission to UC6"
     else
       logger.debug 'No new infrastructures to submit to UC6'
@@ -177,7 +171,7 @@ class UC6Connector
 
     infrastructure_creates.each do |infrastructure|
       infrastructure = infrastructure.submit_create
-      if (infrastructure.remote_id)
+      if infrastructure.remote_id
         @local_platform_remote_id_inventory["i:#{infrastructure.platform_id}"] = PlatformRemoteId.new(infrastructure: infrastructure.platform_id,
                                                                                                       remote_id: infrastructure.remote_id)
 
@@ -189,7 +183,6 @@ class UC6Connector
     # Batch save local inventories
     @local_infrastructure_inventory.save
     @local_platform_remote_id_inventory.save
-
   end
 
   private
@@ -198,20 +191,14 @@ class UC6Connector
     mr = machine_reading
     infrastructure_prid = @local_platform_remote_id_inventory["i:#{mr.id[:infrastructure_platform_id]}"]
     machine_prid = @local_platform_remote_id_inventory["#{infrastructure_prid.platform_key}/m:#{mr.id[:machine_platform_id]}"]
-    if ( machine_prid and infrastructure_prid )
+    if machine_prid && infrastructure_prid
       begin
-        mr.readings.each do |reading|
-          reading[:disk_metrics].each {|dm| #inject?
-            dm[:remote_id] = @local_platform_remote_id_inventory["#{machine_prid.platform_key}/d:#{dm['platform_id']}"].remote_id } if reading[:disk_metrics].present?
-          reading[:nic_metrics].each {|nm| #inject?
-            nm[:remote_id] = @local_platform_remote_id_inventory["#{machine_prid.platform_key}/n:#{nm['platform_id']}"].remote_id } if reading[:nic_metrics].present?
-        end
-        mr.post_to_api(infrastructure_machine_readings_url(infrastructure_prid.remote_id,machine_prid.remote_id))
+        mr.post_to_api(infrastructure_machine_readings_url(machine_prid.remote_id))
       rescue NoMethodError => e
         # This is a bit of cheat, but the only way to trigger a NoMethodError is if we call .remote_id on nil, which would
         #  indicate we have not created the corresponding disk or nic yet
         logger.info "Delaying submission of readings for machine #{mr.id[:machine_platform_id]} " \
-                    "until corresponding UC6 machine disk and NIC resources have been created"
+                    'until corresponding UC6 machine disk and NIC resources have been created'
         logger.debug e.message
       end
 
@@ -219,7 +206,6 @@ class UC6Connector
       logger.info "Delaying submission of readings for machine #{mr.id[:machine_platform_id]} "\
                   "until corresponding UC6 infrastructure #{machine_prid ? '' : 'and machine '}resources have been created"
     end
-
   end
 
   def load_infrastructure_data
@@ -235,7 +221,7 @@ class UC6Connector
   end
 
   def submit_machine_creates(machine_creates = Machine.to_be_created)
-    if ( machine_creates.size > 0 )
+    if !machine_creates.empty?
       logger.info "Processing #{machine_creates.size} new machines for submission to UC6"
     else
       logger.debug 'No new machines to submit to UC6'
@@ -247,7 +233,7 @@ class UC6Connector
 
         if infrastructure_prid
 
-          if ( @local_platform_remote_id_inventory.has_key?("i:#{created_machine.infrastructure_platform_id}/m:#{created_machine.platform_id}") )
+          if @local_platform_remote_id_inventory.key?("i:#{created_machine.infrastructure_platform_id}/m:#{created_machine.platform_id}")
             # in main loop, creates happen before updates, so this should get picked up immediately after all creates have been submitted
             created_machine.update_attribute(:record_status, 'updated')
             next
@@ -262,7 +248,7 @@ class UC6Connector
           end
         else
           logger.info "Delaying submission of machine '#{created_machine.platform_id}' "\
-                      "to UC6 API until parent infrastructure has been submitted"
+                      'to UC6 API until parent infrastructure has been submitted'
 
         end
       rescue StandardError => e
@@ -276,7 +262,7 @@ class UC6Connector
 
   def handle_machine_failed_creates
     machine_failed_creates = Machine.failed_creates.to_a
-    if ( machine_failed_creates.size > 0 )
+    if !machine_failed_creates.empty?
       logger.info "Processing #{machine_failed_creates.size} machines that did not successfully get created in UC6"
     else
       logger.debug 'No machines creation failures to process'
@@ -286,7 +272,7 @@ class UC6Connector
       machine_failed_creates.each do |m_f_c|
         infrastructure_prid = @local_platform_remote_id_inventory["i:#{m_f_c.infrastructure_platform_id}"]
 
-        if ( infrastructure_prid.nil? )
+        if infrastructure_prid.nil?
           logger.debug "Cannot handle_machine_failed_create for #{m_f_c.platform_id}. No prid because infrastructure_platform_id is nil"
           next
         end
@@ -311,15 +297,15 @@ class UC6Connector
 
   def submit_machine_deletes
     machine_deletes = Machine.to_be_deleted
-    if ( machine_deletes.size > 0 )
+    if !machine_deletes.empty?
       logger.info "Processing #{machine_deletes.size} machines that require deletion from UC6"
     else
       logger.debug 'No machines require deletion from UC6'
     end
 
     machine_deletes.each do |deleted_machine|
+      logger.info "DELETED MACHINE => #{deleted_machine.inspect}"
       submit_url = machine_url(deleted_machine)
-
       deleted_machine.submit_delete(submit_url)
 
       if deleted_machine.record_status == 'deleted'
@@ -331,9 +317,9 @@ class UC6Connector
   end
 
   def submit_machine_updates
-    if ( InventoriedTimestamp.most_recent )
-      updated_machines = Machine.to_be_updated #(latest_inventory.inventory_at)
-      if ( updated_machines.size > 0 )
+    if InventoriedTimestamp.most_recent
+      updated_machines = Machine.to_be_updated # (latest_inventory.inventory_at)
+      if !updated_machines.empty?
         logger.info "Processing #{updated_machines.size} machines that have configuration updates for UC6"
       else
         logger.debug 'No machines require updating in UC6'
@@ -341,12 +327,13 @@ class UC6Connector
 
       updated_machines.each do |updated_machine|
         begin
-          logger.debug "Before inject_machine_disk_nic_remote_ids \n\n"
           updated_machine = inject_machine_disk_nic_remote_ids(updated_machine)
           logger.debug "Updated machine #{updated_machine.inspect} \n"
-          submit_url = machine_url(updated_machine) 
+          submit_url = machine_url(updated_machine)
           submitted_machine = updated_machine.submit_update(submit_url)
-
+          api_machine = retrieve_api_machine(updated_machine)
+          verify_and_submit_nics_updates(submitted_machine, api_machine)
+          verify_and_submit_disks_updates(submitted_machine, api_machine)
           logger.debug "submitted_machine.record_status => #{submitted_machine.record_status} \n\n"
           # Note: Successfully updated machines record_status changes from "updated" to "verified_update"
           if submitted_machine.record_status == 'verified_update'
@@ -371,10 +358,9 @@ class UC6Connector
   # Finds documents with nics or disks that need to be deleted, then calls specific delete functions
   def submit_machine_disk_and_nic_deletes
     machines_with_disk_or_nic_deletes = Machine.disks_or_nics_to_be_deleted
-
     machines_with_disk_or_nic_deletes.each do |machine|
-      disk_deletes = machine.disks.select{|d| 'to_be_deleted' == d.record_status}
-      nic_deletes = machine.nics.select{|n| 'to_be_deleted' == n.record_status}
+      disk_deletes = machine.disks.select { |d| 'to_be_deleted' == d.record_status }
+      nic_deletes = machine.nics.select { |n| 'to_be_deleted' == n.record_status }
 
       disk_deletes.each do |ddel|
         submit_machine_disk_delete(ddel)
@@ -387,26 +373,32 @@ class UC6Connector
   end
 
   def submit_machine_disk_delete(disk)
-    logger.debug "Processing disk that require UC6 deletion"
+    logger.debug 'Processing disk that require UC6 deletion'
 
     submit_url = disk_url(disk)
     deleted_disk = disk.submit_delete(submit_url)
-
     if deleted_disk.record_status == 'verified_delete' || deleted_disk.record_status == 'unverified_delete'
       deleted_disk.save # Update status in mongo
+      disk_machine = disk.machine
+      disk_prid = @local_platform_remote_id_inventory["i:#{disk_machine.infrastructure_platform_id}/m:#{disk_machine.platform_id}/d:#{disk.platform_id}"]
+      disk_prid.delete if disk_prid
+      @local_platform_remote_id_inventory = PlatformRemoteIdInventory.new
     else
       logger.error "Error deleting disk: platform_id = #{disk.platform_id}, mongo _id = #{disk.id}, submit_url = #{submit_url}"
     end
   end
 
   def submit_machine_nic_delete(nic)
-    logger.debug "Processing nic that require UC6 deletion"
+    logger.debug 'Processing nic that require UC6 deletion'
 
     submit_url = nic_url(nic)
-    deleted_nic= nic.submit_delete(submit_url)
-
+    deleted_nic = nic.submit_delete(submit_url)
     if deleted_nic.record_status == 'verified_delete' || deleted_nic.record_status == 'unverified_delete'
       deleted_nic.save # Update status in mongo
+      nic_machine = nic.machine
+      nic_prid = @local_platform_remote_id_inventory["i:#{nic_machine.infrastructure_platform_id}/m:#{nic_machine.platform_id}/n:#{nic.platform_id}"]
+      nic_prid.delete if nic_prid
+      @local_platform_remote_id_inventory = PlatformRemoteIdInventory.new
     else
       logger.error "Error deleting NIC: platform_id = #{nic.platform_id}, platform _id = #{nic.id}, submit_url = #{submit_url}"
     end
@@ -425,7 +417,6 @@ class UC6Connector
 
     unless machine.remote_id
       machine_prid = @local_platform_remote_id_inventory[machine_platform_key]
-      logger.info "MACHINE PRID => #{machine_prid}\n\n"
       if machine_prid
         machine_remote_id = machine_prid.remote_id
         if !machine_remote_id
@@ -453,7 +444,6 @@ class UC6Connector
 
       disk_platform_key = machine_platform_key + "/d:#{d.platform_id}"
       disk_prid = @local_platform_remote_id_inventory[disk_platform_key]
-      logger.info "DISC PRID => #{disk_prid}\n\n"
       if disk_prid
         disk_remote_id = disk_prid.remote_id
         if !disk_remote_id
@@ -513,9 +503,8 @@ class UC6Connector
                                         infrastructure: machine.infrastructure_platform_id,
                                         machine: machine.platform_id)
 
-
-    if ( @local_platform_remote_id_inventory.has_key?(machine_prid.platform_key) )
-      unless ( @local_platform_remote_id_inventory[machine_prid.platform_key].remote_id == machine.remote_id )
+    if @local_platform_remote_id_inventory.key?(machine_prid.platform_key)
+      unless @local_platform_remote_id_inventory[machine_prid.platform_key].remote_id == machine.remote_id
         machine_prid.save
         @local_platform_remote_id_inventory[machine_prid.platform_key] = machine_prid
       end
@@ -523,90 +512,87 @@ class UC6Connector
       machine_prid.save
       @local_platform_remote_id_inventory[machine_prid.platform_key] = machine_prid
     end
-
   end
 
   def add_machine_disks_prids(machine)
     machine.disks.each do |disk|
-      if disk.remote_id
-        disk_prid = PlatformRemoteId.new(remote_id: disk.remote_id,
-                                         infrastructure: machine.infrastructure_platform_id,
-                                         machine: machine.platform_id,
-                                         disk: disk.platform_id)
+      next unless disk.remote_id
+      disk_prid = PlatformRemoteId.new(remote_id: disk.remote_id,
+                                       infrastructure: machine.infrastructure_platform_id,
+                                       machine: machine.platform_id,
+                                       disk: disk.platform_id)
 
-        if ( @local_platform_remote_id_inventory.has_key?(disk_prid.platform_key) )
-          unless ( @local_platform_remote_id_inventory[disk_prid.platform_key].remote_id == disk.remote_id )
-            disk_prid.save
-            @local_platform_remote_id_inventory[disk_prid.platform_key] = disk_prid
-          end
-        else
+      if @local_platform_remote_id_inventory.key?(disk_prid.platform_key)
+        unless @local_platform_remote_id_inventory[disk_prid.platform_key].remote_id == disk.remote_id
           disk_prid.save
           @local_platform_remote_id_inventory[disk_prid.platform_key] = disk_prid
         end
+      else
+        disk_prid.save
+        @local_platform_remote_id_inventory[disk_prid.platform_key] = disk_prid
       end
     end
   end
 
   def add_machine_nics_prids(machine)
     machine.nics.each do |nic|
-      if nic.remote_id
-        nic_prid = PlatformRemoteId.new(remote_id: nic.remote_id,
-                                        infrastructure: machine.infrastructure_platform_id,
-                                        machine: machine.platform_id,
-                                        nic: nic.platform_id)
+      next unless nic.remote_id
+      nic_prid = PlatformRemoteId.new(remote_id: nic.remote_id,
+                                      infrastructure: machine.infrastructure_platform_id,
+                                      machine: machine.platform_id,
+                                      nic: nic.platform_id)
 
-        if ( @local_platform_remote_id_inventory.has_key?(nic_prid.platform_key) )
-          unless ( @local_platform_remote_id_inventory[nic_prid.platform_key].remote_id == nic.remote_id )
-            nic_prid.save
-            @local_platform_remote_id_inventory[nic_prid.platform_key] = nic_prid
-          end
-        else
+      if @local_platform_remote_id_inventory.key?(nic_prid.platform_key)
+        unless @local_platform_remote_id_inventory[nic_prid.platform_key].remote_id == nic.remote_id
           nic_prid.save
           @local_platform_remote_id_inventory[nic_prid.platform_key] = nic_prid
         end
+      else
+        nic_prid.save
+        @local_platform_remote_id_inventory[nic_prid.platform_key] = nic_prid
       end
     end
   end
 
   def retrieve_machines(infrastructure)
-    machines_by_platform_id = Hash.new
+    machines_by_platform_id = {}
     machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure.remote_id))
     machines_json.each do |json|
       remote_id = json['id']
       response = @hyper_client.get(retrieve_machine(remote_id))
-      if ( response.code == 200 )
-        machine_json = JSON.parse(response)
-        machine = Machine.new(remote_id:     machine_json['id'],
-                              name:          machine_json['name'],
-                              virtual_name:  machine_json['custom_id'],
-                              cpu_count:     machine_json['cpu_count'],
-                              cpu_speed_mhz: machine_json['cpu_speed_hz'],
-                              memory_bytes:  machine_json['memory_bytes'],
-                              status:        machine_json['status'])
-        yield "Retrieved #{machine.name}" if block_given?
-        disks_json = machine_json['embedded']['disks']
-        machine.disks = disks_json.map{|dj| Disk.new(remote_id: dj['id'],
-                                                     name: dj['name'],
-                                                     platform_id: dj['uuid'],
-                                                     type: 'Disk',
-                                                     size: dj['storage_bytes']) }
+      next unless response.code == 200
+      machine_json = JSON.parse(response)
+      machine = Machine.new(remote_id: machine_json['id'],
+                            name: machine_json['name'],
+                            virtual_name: machine_json['custom_id'],
+                            cpu_count: machine_json['cpu_count'],
+                            cpu_speed_hz: machine_json['cpu_speed_hz'],
+                            memory_bytes: machine_json['memory_bytes'],
+                            status: machine_json['status'])
+      yield "Retrieved #{machine.name}" if block_given?
+      disks_json = machine_json['embedded']['disks']
+      machine.disks = disks_json.map { |dj|
+        Disk.new(remote_id: dj['id'],
+                 name: dj['name'],
+                 platform_id: dj['uuid'],
+                 type: 'Disk',
+                 size: dj['storage_bytes'])
+      }
 
-        nics_json = machine_json['embedded']['nics']
-        machine.nics = nics_json.map{|nj| Nic.new(remote_id: nj['id'],
-                                                  name: nj['name'],
-                                                  kind: nj['kind'].eql?(0) ? 'lan' : 'wan',
-                                                  ip_address: nj['ip_address'],
-                                                  mac_address: nj['mac_address'])}
+      nics_json = machine_json['embedded']['nics']
+      machine.nics = nics_json.map { |nj|
+        Nic.new(remote_id: nj['id'],
+                name: nj['name'],
+                kind: nj['kind'].eql?(0) ? 'lan' : 'wan',
+                ip_address: nj['ip_address'],
+                mac_address: nj['mac_address'])
+      }
 
-        machines_by_platform_id[machine_json['custom_id']] = machine #CHECK if this is uniq
-      else
-        #!!
-      end
+      machines_by_platform_id[machine_json['custom_id']] = machine # CHECK if this is uniq
     end
     logger.debug "machines_by_platform_id = > #{machines_by_platform_id.inspect} \n\n"
     machines_by_platform_id
   end
-
 
   def load_machines_data
     all_machines_json = @hyper_client.get_all_resoures(machines_url)
@@ -622,7 +608,7 @@ class UC6Connector
           name: m['name'],
           virtual_name: m['custom_id'],
           cpu_count: m['cpu_count'],
-          cpu_speed_mhz: m['cpu_speed_mhz'],
+          cpu_speed_hz: m['cpu_speed_hz'],
           memory_bytes: m['memory_bytes'],
           status: m['status']
         }
@@ -639,9 +625,9 @@ class UC6Connector
   def pause(reset_time)
     logger.warn 'API request limit reached'
 
-    if ( reset_time )
+    if reset_time
       sleepy_time = (reset_time - Time.now).to_i
-      if ( sleepy_time > 0 ) # pretty unlikely for this to be false
+      if sleepy_time > 0 # pretty unlikely for this to be false
         logger.info "Waiting #{sleepy_time} seconds before reattempting API submissions"
         sleep(sleepy_time)
       else
@@ -653,4 +639,70 @@ class UC6Connector
     end
   end
 
+  def verify_and_submit_nics_updates(updated_machine, _api_machine)
+    to_be_created = (updated_machine.nics.map &:api_format).select { |n| n[:id].nil? && n[:name].present? }
+    create_nics(to_be_created, updated_machine) if to_be_created.present?
+  end
+
+  def create_nics(nics, machine)
+    submit_url = machine_nics_url(machine.remote_id)
+    nics.each do |nic|
+      response = @hyper_client.post(submit_url, nic)
+      if response && response.code == 200
+        current_nic = machine.nics.select { |n| n if n.name == nic[:name] }.first
+        current_nic.update_attributes(remote_id: response.json['id'], record_status: 'verified_create')
+        logger.debug "Successfully created nic #{nic[:name]} for machine #{machine.name}"
+      else
+        machine.update_attributtes(record_status: 'updated')
+        logger.error "Couldn't create nic #{nic[:name]} for machine #{machine.name}"
+      end
+    end
+  end
+
+  def verify_and_submit_disks_updates(updated_machine, api_machine)
+    local_disks = (updated_machine.disks.map &:api_format).select { |n| n if n[:name].present? }
+    remote_disks = api_machine['embedded']['disks'].map { |d| {id: d['id'], name: d['name'], storage_bytes: d['storage_bytes'], kind: 'disk'} }
+    local_disks_ids = local_disks.map { |n| n[:id] if !n[:name].nil? && n[:id].present? }.compact
+    remote_disks_ids = remote_disks.map { |n| n[:id] }
+    to_be_created = (updated_machine.disks.map &:api_format).select { |n| n[:id].nil? && n[:name].present? }
+    create_disks(to_be_created, updated_machine) if to_be_created.present?
+    if local_disks_ids.sort == remote_disks_ids.sort
+      disks_to_update = (local_disks - remote_disks).select { |n| n if n[:id].present? }
+      update_disks(disks_to_update, updated_machine)
+    end
+  end
+
+  def update_disks(disks, machine)
+    disks.each do |disk|
+      update_url = disk_url_for(disk[:id])
+      response = @hyper_client.put(update_url, disk)
+      if response.code == 200
+        logger.debug "Successfully updated disk #{disk[:name]} for machine #{machine.name}"
+      else
+        machine.update_attributes(record_status: 'updated')
+        logger.error "Couldn't update disk #{disk[:name]} for machine #{machine.name}"
+      end
+    end
+  end
+
+  def create_disks(disks, machine)
+    submit_url = machine_disks_url(machine.remote_id)
+    disks.each do |disk|
+      response = @hyper_client.post(submit_url, disk)
+      if response && response.code == 200
+        current_disk = machine.disks.select { |d| d if d.name == disk[:name] }.first
+        current_disk.update_attributes(remote_id: response.json['id'], record_status: 'verified_create')
+        logger.debug "Successfully created disk #{disk[:name]} for machine #{machine.name}"
+      else
+        machine.update_attributtes(record_status: 'updated')
+        logger.error "Couldn't create disk #{disk[:name]} for machine #{machine.name}"
+      end
+    end
+  end
+
+  ###########
+  def retrieve_api_machine(updated_machine)
+    api_machine = @hyper_client.get(machine_url(updated_machine))
+    api_machine.json if api_machine && api_machine.code == 200
+  end
 end
