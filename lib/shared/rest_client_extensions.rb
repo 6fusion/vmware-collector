@@ -1,21 +1,11 @@
-
 module RestClient::Response
   def remote_id
     json['id']
   end
 
-  def json #NEED TO CHECK THIS! There is no more any remote_id
-    #!! need a rescue around this
-    j = JSON::parse(body)
-    # Insert remote IDs
-    #!! rescues, ifs etc needed
-    if j['embedded'] and !j['embedded']['remote_id']
-      j['embedded'].values.flatten.each do |thing|
-        md = thing['_links']['self']['href'].match(/\/(\d+)$/)
-        thing['remote_id'] = md[1].to_i
-      end
-    end
-    j
+  def json
+    # IMPORTANT: This will raise an exception if the body is not in JSON format
+    JSON::parse(body)
   end
 
 end
