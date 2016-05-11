@@ -173,7 +173,7 @@ class Machine
   def api_format
     machine_api_format = {
        "name": name,
-       "virtual_name": platform_id,
+       "custom_id": platform_id,
        "cpu_count": cpu_count,
        "cpu_speed_hz": cpu_speed_mhz, #CHECK THIS IF WE NEED TO CONVERT IT TO HZ
        "memory_bytes": memory_bytes,
@@ -235,15 +235,15 @@ class Machine
 
     logger.info "Checking UC6 if #{self.platform_id} was already submitted"
     begin
-      and_query_json = { virtual_name: { eq: self.platform_id } }.to_json
-      response = hyper_client.get(infrastructure_machines_endpoint, {"and": and_query_json})
+      and_query_json = { custom_id: { eq: self.platform_id } }.to_json
+      response = hyper_client.get(infrastructure_machines_endpoint, {"and": and_query_json})# NEED TO CHECK THIS
 
       if response and response.code == 200
-        response_machines_json = response.json["embedded"]["machines"]
+        response_machines_json = JSON.parse(response)["embedded"]["machines"]
 
         unless response_machines_json.empty?
           # !!! May want to add check in case returns more than one machine (check status deleted?)
-          machine_remote_id = response_machines_json.first["remote_id"]
+          machine_remote_id = response_machines_json.first["id"]
           self.remote_id = machine_remote_id
 
           # Note: Must do an extra request to get the remote_ids for disks/nics, then map to self's disks/nics
