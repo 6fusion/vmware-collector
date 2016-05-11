@@ -6,7 +6,8 @@ class Nic
   include Mongoid::Timestamps
   include Matchable
 
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
   field :platform_id, type: String
   field :record_status, type: String
   field :name, type: String
@@ -45,7 +46,7 @@ class Nic
     {
       "id": remote_id,
       "name": name,
-      "kind": kind,
+      "kind": kind.upcase,
       "ip_address": ip_address,
       "mac_address": mac_address
     }

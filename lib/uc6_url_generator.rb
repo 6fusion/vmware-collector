@@ -1,23 +1,68 @@
 module UC6UrlGenerator
+
+  def request_format
+    configuration[:uc6_api_format]
+  end
+
+  # BASE URLS which will be used just for avoiding code duplication
+  def infrastructures_base_url
+    "#{configuration[:uc6_api_endpoint]}/infrastructures"
+  end
+
+  def organization_base_url
+    "#{configuration[:uc6_api_endpoint]}/organizations/#{configuration[:uc6_organization_id]}"
+  end
+
+  def machines_base_url
+    "#{configuration[:uc6_api_endpoint]}/machines"
+  end
+
+  # END BASE URLs methods
+
+  # Real routing methods start here
   def organization_url
-    @organization_url ||= "#{configuration[:uc6_api_endpoint]}/organizations/#{configuration[:uc6_organization_id]}"
+    "#{organization_base_url}.#{request_format}"
   end
 
   def infrastructures_url
-    @infrastructures_url ||= "#{organization_url}/infrastructures"
+    "#{infrastructures_base_url}.#{request_format}"
+  end
+
+  def infrastructures_post_url
+    "#{organization_base_url}/infrastructures.#{request_format}"
+  end
+
+  def infrastructure_url(infrastructure_id:)
+    "#{infrastructures_base_url}/#{infrastructure_id}.#{request_format}"
+  end
+
+  def machines_post_url(infrastructure_id:)
+    "#{infrastructures_base_url}/#{infrastructure_id}/machines.#{request_format}"
   end
 
   def machines_url
-    @machines_url ||= "#{organization_url}/machines"
+    "#{machines_base_url}.#{request_format}"
   end
 
-  # !!!! For consistency, make this take the infrastructure object and get the remote_id using prid
-  def infrastructure_machines_url(infrastructure_id)
+
+  def infrastructure_machines_url(infrastructure_id:)
+    "#{machines_base_url}.#{request_format}?infrastructure_id=#{infrastructure_id}&organization_id=#{configuration[:uc6_organization_id]}"
+  end
+
+  def infrastructure_machines_base_url(infrastructure_id)
     "#{infrastructures_url}/#{infrastructure_id}/machines"
   end
 
+  def retrieve_machine(machine_remote_id)
+    "#{configuration[:uc6_api_endpoint]}/machines/#{machine_remote_id}.json"
+  end
+
+  def machines_creation_url(infrastructure_id)
+    "#{configuration[:uc6_api_endpoint]}/infrastructures/#{infrastructure_id}/machines.json"
+  end
+
   def infrastructure_machine_url(infrastructure_id, machine_id)
-    "#{infrastructure_machines_url(infrastructure_id)}/#{machine_id}"
+    "#{infrastructure_machines_url(infrastructure_id, configuration[:uc6_organization_id])}/#{machine_id}"
   end
 
   def infrastructure_machine_readings_url(infrastructure_id, machine_id)
@@ -25,12 +70,12 @@ module UC6UrlGenerator
   end
 
   def machine_url(machine)
+    logger.info "@local_platform_remote_id_inventory => #{@local_platform_remote_id_inventory} \n\n MACHINE #{machine.inspect}"
     infrastructure_prid = @local_platform_remote_id_inventory["i:#{machine.infrastructure_platform_id}"]
     machine_prid = @local_platform_remote_id_inventory["i:#{machine.infrastructure_platform_id}/m:#{machine.platform_id}"]
     raise "Could construct API url for #{machine.platform_id}" unless machine_prid
     raise "No remote_id for machine: #{machine.platform_id}" unless machine_prid.remote_id
-
-    "#{infrastructure_machines_url(infrastructure_prid.remote_id)}/#{machine_prid.remote_id}"
+    retrieve_machine(machine.remote_id)
   end
 
   def disk_url(disk)

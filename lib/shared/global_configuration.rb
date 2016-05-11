@@ -61,6 +61,17 @@ module GlobalConfiguration
     def configured?
       self[:verified_api_connection] && self[:verified_vsphere_connection]
     end
+   
+    def vsphere_configured?
+      errors = true
+      [:vsphere_host, :vsphere_user, :vsphere_password].each  do |attribute|
+        if blank_value?(attribute)
+          logger.info "#{attribute} is not set on the configuration file"
+          errors = false
+        end
+      end
+      errors
+    end
 
     def to_s
       "Configuration: \n" +
@@ -137,46 +148,45 @@ module GlobalConfiguration
     end
 
     def defaults
-      @defaults ||= { config_root: 'config',
-                      data_center: 'not set',
-                      vsphere_session_limit: 10,
-                      vsphere_user: 'not set',
-                      vsphere_password: 'not set',
-                      vsphere_host: 'not set',
-                      vsphere_readings_batch_size: 500,
-                      vsphere_ignore_ssl_errors: false,
-                      vsphere_debug: false,
-                      uc6_api_host: 'not set',
-                      uc6_login_email: 'not set',
-                      uc6_login_password: 'not set',
-                      uc6_batch_size: 500,
-                      uc6_api_endpoint: 'not set',
-                      uc6_oauth_endpoint: 'not set',
-                      uc6_api_scope: 'not set',
-                      uc6_api_threads: 2,
-                      uc6_application_id: 'not set',
-                      uc6_application_secret: 'not set',
-                      uc6_meter_version: 'not set',
-                      uc6_organization_id: 'not set',
-                      uc6_organization_name: 'not set',
-                      uc6_infrastructure_id: 'not set',
-                      uc6_meter_id: 'not set',
-                      uc6_oauth_token: 'not set',
-                      uc6_refresh_token: 'not set',
-                      uc6_proxy_host: 'not set',
-                      uc6_proxy_port: 'not set',
-                      uc6_proxy_user: 'not set',
-                      uc6_proxy_password: 'not set',
-                      uc6_log_level: Logger::DEBUG,
-                      mongoid_log_level: Logger::INFO,
-                      mongoid_hosts: 'localhost:27017',
-                      mongoid_database: '6fusion_meter',
-                      mongoid_port: 'not set',
-                      verified_api_connection: false,
-                      verified_vsphere_connection: false,
-                      container_namespace: '6fusion',
-                      container_repository: 'vmware-collector',
-                      updated_credentials: false
+      @defaults ||= {config_root: 'config',
+                     data_center: 'not set',
+                     vsphere_session_limit: 10,
+                     vsphere_user: 'not set',
+                     vsphere_password: 'not set',
+                     vsphere_host: 'not set',
+                     vsphere_readings_batch_size: 500,
+                     vsphere_ignore_ssl_errors: false,
+                     vsphere_debug: false,
+                     uc6_api_format: 'json',
+                     uc6_api_host: 'not set',
+                     uc6_login_email: 'not set',
+                     uc6_login_password: 'not set',
+                     uc6_batch_size: 500,
+                     uc6_api_endpoint: 'not set',
+                     uc6_oauth_endpoint: 'not set',
+                     uc6_api_scope: 'not set',
+                     uc6_api_threads: 2,
+                     uc6_application_id: 'not set',
+                     uc6_application_secret: 'not set',
+                     uc6_meter_version: 'not set',
+                     uc6_organization_id: 'not set',
+                     uc6_organization_name: 'not set',
+                     uc6_meter_id: 'not set',
+                     uc6_oauth_token: 'not set',
+                     uc6_refresh_token: 'not set',
+                     uc6_proxy_host: 'not set',
+                     uc6_proxy_port: 'not set',
+                     uc6_proxy_user: 'not set',
+                     uc6_proxy_password: 'not set',
+                     uc6_log_level: Logger::DEBUG,
+                     mongoid_log_level: Logger::INFO,
+                     mongoid_hosts: 'localhost:27017',
+                     mongoid_database: '6fusion_meter',
+                     mongoid_port: 'not set',
+                     verified_api_connection: false,
+                     verified_vsphere_connection: true,
+                     container_namespace: '6fusion',
+                     container_repository: 'vmware-collector'
                     }
     end
 
@@ -189,7 +199,6 @@ module GlobalConfiguration
 
     def config_root
       pwd = Dir.pwd
-      print "PWD => #{pwd} \n\n"
       @config_root ||= begin
                          case
                          when File.readable?("#{pwd}/../config/#{@environment}/uc6.yml") then "#{pwd}/../config/#{@environment}"

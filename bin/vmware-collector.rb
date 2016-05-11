@@ -7,6 +7,7 @@ require 'timeout'
 require 'global_configuration'
 require 'infrastructure_collector'
 require 'collector_registration'
+require 'collector_syncronization'
 require 'logging'
 require 'signal_handler'
 
@@ -16,4 +17,6 @@ include SignalHandler
 Thread::abort_on_exception = true
 registration = CollectorRegistration.new
 registration.configure_uc6
-print "\n Global Configuration Instance => \n #{GlobalConfiguration::GlobalConfig.instance.to_s}\n\n"
+registration.configure_vsphere
+sync = CollectorSyncronization.new
+sync.sync_data

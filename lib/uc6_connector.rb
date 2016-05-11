@@ -22,12 +22,12 @@ Thread.abort_on_exception = true
 
 class UC6Connector
   include GlobalConfiguration
-  include Logging
   include UC6UrlGenerator
+  include Logging
   using RbVmomiExtensions
 
   def initialize
-    logger.info "Initializing UC6 Connector"
+    logger.info 'Initializing UC6 Connector'
     @hyper_client = HyperClient.new
     @local_infrastructure_inventory = InfrastructureInventory.new(:name)
     @local_platform_remote_id_inventory = PlatformRemoteIdInventory.new
@@ -35,7 +35,7 @@ class UC6Connector
                                                       max_threads: configuration[:uc6_api_threads],  # FIXME - 1 this
                                                       max_queue: configuration[:uc6_api_threads] + 1,
                                                       fallback_policy: :caller_runs)
- end
+  end
 
   def submit
     begin
@@ -67,10 +67,8 @@ class UC6Connector
   # Used by the registration process to update platform_remote_id with machine remote IDs (if they exist in UC6 prior to meter registration)
   def initialize_platform_ids
     Infrastructure.enabled.each do |infrastructure|
-
       local_inventory = MachineInventory.new(infrastructure)
       uc6_inventory = retrieve_machines(infrastructure){|msg| yield msg if block_given? } #this is so the registration wizard can scroll names as they're retrieved, I think
-
       local_inventory.each do |platform_id, local_machine|
         if ( uc6_inventory.has_key?(platform_id) )
           #!! if the machine exists in UC6, we need to get its status set to something other than 'created', so we don't create it again
@@ -134,7 +132,7 @@ class UC6Connector
   def submit_reading_creates
     queued = Reading.where(record_status: 'created').count
     if ( queued == 0 )
-      logger.debug "No readings queued for submission"
+      logger.debug 'No readings queued for submission'
     else
       logger.info "Preparing to submit #{queued} readings"
 
@@ -178,39 +176,7 @@ class UC6Connector
     @local_infrastructure_inventory = InfrastructureInventory.new(:name)
 
     infrastructure_creates.each do |infrastructure|
-
-      infrastructure = infrastructure.submit_create(infrastructures_url)
-
-      if (infrastructure.remote_id)
-        @local_platform_remote_id_inventory["i:#{infrastructure.platform_id}"] = PlatformRemoteId.new(infrastructure: infrastructure.platform_id,
-                                                                                                      remote_id: infrastructure.remote_id)
-
-        @local_infrastructure_inventory[infrastructure.name] = infrastructure
-      else
-        logger.error "No remote id returned for #{infrastructure.name}"
-      end
-    end
-    # Batch save local inventories
-    @local_infrastructure_inventory.save
-    @local_platform_remote_id_inventory.save
-
-  end
-
-
-  def submit_infrastructure_creates
-    infrastructure_creates = Infrastructure.where(record_status: 'created')
-    if ( infrastructure_creates.size > 0 )
-      logger.info "Processing #{infrastructure_creates.size} new infrastructures for submission to UC6"
-    else
-      logger.debug 'No new infrastructures to submit to UC6'
-    end
-
-    @local_infrastructure_inventory = InfrastructureInventory.new(:name)
-
-    infrastructure_creates.each do |infrastructure|
-
-      infrastructure = infrastructure.submit_create(infrastructures_url)
-
+      infrastructure = infrastructure.submit_create
       if (infrastructure.remote_id)
         @local_platform_remote_id_inventory["i:#{infrastructure.platform_id}"] = PlatformRemoteId.new(infrastructure: infrastructure.platform_id,
                                                                                                       remote_id: infrastructure.remote_id)
@@ -257,7 +223,6 @@ class UC6Connector
   end
 
   def load_infrastructure_data
-    puts "Loading Infrastructures"
     all_infrastructure_json = @hyper_client.get_all_resources(infrastructures_url)
 
     all_infrastructure_json.each do |json_batch|
@@ -287,9 +252,7 @@ class UC6Connector
             created_machine.update_attribute(:record_status, 'updated')
             next
           end
-
-          submit_url = infrastructure_machines_url(infrastructure_prid.remote_id)
-          created_machine.submit_create(submit_url)
+          created_machine.submit_create
 
           if created_machine.record_status == 'verified_create'
             created_machine.save # Update status in mongo
@@ -328,7 +291,8 @@ class UC6Connector
           next
         end
 
-        submit_url = infrastructure_machines_url(infrastructure_prid.remote_id) # Machines are unique by platform_id/virtual_name scoped to Infrastructure
+        # Machines are unique by platform_id/virtual_name scoped to Infrastructure
+        submit_url = infrastructure_machines_url(infrastructure_id: infrastructure_prid.remote_id)
 
         if m_f_c.already_submitted?(submit_url)
           m_f_c.update_attribute(:record_status, 'verified_create') # checks UC6 using virtual_name
@@ -377,11 +341,13 @@ class UC6Connector
 
       updated_machines.each do |updated_machine|
         begin
+          logger.debug "Before inject_machine_disk_nic_remote_ids \n\n"
           updated_machine = inject_machine_disk_nic_remote_ids(updated_machine)
-
-          submit_url = machine_url(updated_machine)
+          logger.debug "Updated machine #{updated_machine.inspect} \n"
+          submit_url = machine_url(updated_machine) 
           submitted_machine = updated_machine.submit_update(submit_url)
 
+          logger.debug "submitted_machine.record_status => #{submitted_machine.record_status} \n\n"
           # Note: Successfully updated machines record_status changes from "updated" to "verified_update"
           if submitted_machine.record_status == 'verified_update'
             submitted_machine.save # Save status in mongo
@@ -459,7 +425,7 @@ class UC6Connector
 
     unless machine.remote_id
       machine_prid = @local_platform_remote_id_inventory[machine_platform_key]
-
+      logger.info "MACHINE PRID => #{machine_prid}\n\n"
       if machine_prid
         machine_remote_id = machine_prid.remote_id
         if !machine_remote_id
@@ -487,7 +453,7 @@ class UC6Connector
 
       disk_platform_key = machine_platform_key + "/d:#{d.platform_id}"
       disk_prid = @local_platform_remote_id_inventory[disk_platform_key]
-
+      logger.info "DISC PRID => #{disk_prid}\n\n"
       if disk_prid
         disk_remote_id = disk_prid.remote_id
         if !disk_remote_id
@@ -516,7 +482,7 @@ class UC6Connector
 
       nic_platform_key = machine_platform_key + "/n:#{n.platform_id}"
       nic_prid = @local_platform_remote_id_inventory[nic_platform_key]
-
+      logger.info "NIC PRID => #{nic_prid}\n\n"
       if nic_prid
         nic_remote_id = nic_prid.remote_id
         if !nic_remote_id
@@ -602,55 +568,42 @@ class UC6Connector
     end
   end
 
-  def load_infrastructure_data
-    all_infrastructure_json = @hyper_client.get_all_resources(infrastructures_url)
-
-    all_infrastructure_json.each do |json_batch|
-      infrastructures = json_batch['embedded']['infrastructures']
-      infrastructures.each do |inf|
-        @local_infrastructure_inventory[inf['name']] = Infrastructure.new(name: inf['name'])
-      end
-    end
-    @local_infrastructure_inventory.save
-  end
-
   def retrieve_machines(infrastructure)
     machines_by_platform_id = Hash.new
-
-    machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure.remote_id), {fields: 'remote_id'})
+    machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure.remote_id))
     machines_json.each do |json|
-      remote_id = json['remote_id']
-      response = @hyper_client.get(infrastructure_machine_url(infrastructure.remote_id, remote_id) + ".json", {expand: 'disks,nics'})
+      remote_id = json['id']
+      response = @hyper_client.get(retrieve_machine(remote_id))
       if ( response.code == 200 )
-        machine_json = response.json
-        machine = Machine.new(remote_id:     machine_json['remote_id'],
+        machine_json = JSON.parse(response)
+        machine = Machine.new(remote_id:     machine_json['id'],
                               name:          machine_json['name'],
-                              virtual_name:  machine_json['virtual_name'],
+                              virtual_name:  machine_json['custom_id'],
                               cpu_count:     machine_json['cpu_count'],
-                              cpu_speed_mhz: machine_json['cpu_speed_mhz'],
-                              memory_bytes:  machine_json['maximum_memory_bytes'],
+                              cpu_speed_mhz: machine_json['cpu_speed_hz'],
+                              memory_bytes:  machine_json['memory_bytes'],
                               status:        machine_json['status'])
         yield "Retrieved #{machine.name}" if block_given?
         disks_json = machine_json['embedded']['disks']
-        machine.disks = disks_json.map{|dj| Disk.new(remote_id: dj['remote_id'],
+        machine.disks = disks_json.map{|dj| Disk.new(remote_id: dj['id'],
                                                      name: dj['name'],
                                                      platform_id: dj['uuid'],
                                                      type: 'Disk',
-                                                     size: dj['maximu_size_bytes']) }
+                                                     size: dj['storage_bytes']) }
 
         nics_json = machine_json['embedded']['nics']
-        machine.nics = nics_json.map{|nj| Nic.new(remote_id: nj['remote_id'],
+        machine.nics = nics_json.map{|nj| Nic.new(remote_id: nj['id'],
                                                   name: nj['name'],
                                                   kind: nj['kind'].eql?(0) ? 'lan' : 'wan',
                                                   ip_address: nj['ip_address'],
                                                   mac_address: nj['mac_address'])}
 
-        machines_by_platform_id[machine_json['virtual_name']] = machine
+        machines_by_platform_id[machine_json['custom_id']] = machine #CHECK if this is uniq
       else
         #!!
       end
     end
-
+    logger.debug "machines_by_platform_id = > #{machines_by_platform_id.inspect} \n\n"
     machines_by_platform_id
   end
 
@@ -667,10 +620,10 @@ class UC6Connector
         properties = {
           remote_id: m['remote_id'],
           name: m['name'],
-          virtual_name: m['virtual_name'],
+          virtual_name: m['custom_id'],
           cpu_count: m['cpu_count'],
           cpu_speed_mhz: m['cpu_speed_mhz'],
-          memory_bytes: m['maximum_memory_bytes'],
+          memory_bytes: m['memory_bytes'],
           status: m['status']
         }
         Machine.new(properties)
@@ -684,7 +637,7 @@ class UC6Connector
   end
 
   def pause(reset_time)
-    logger.warn "API request limit reached"
+    logger.warn 'API request limit reached'
 
     if ( reset_time )
       sleepy_time = (reset_time - Time.now).to_i

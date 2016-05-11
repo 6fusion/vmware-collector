@@ -3,8 +3,8 @@ require 'host'
 require 'infrastructure_collector'
 require 'logging'
 require 'matchable'
-require 'meter_instance'
 require 'network'
+require 'uc6_url_generator'
 
 class Infrastructure
   include Mongoid::Document
@@ -12,30 +12,37 @@ class Infrastructure
   include Logging
   include Matchable
   include GlobalConfiguration
+  include UC6UrlGenerator
 
   field :platform_id, type: String
-  field :remote_id, type: Integer
+  field :remote_id, type: String
   field :name, type: String
   field :record_status, type: String
   field :tags, type: String
 
-  embeds_one  :meter_instance
+  # TODO: Check if this is required by the inventory collector
+  field :enabled, type: Boolean, default: true
+  field :status, type: String, default: 'online'
+  field :vcenter_server, type: String #!! hmmmm
+  field :release_version, type: String, default: 'alpha'
+
   embeds_many :hosts
   embeds_many :networks
   embeds_many :volumes
 
   accepts_nested_attributes_for :hosts
   accepts_nested_attributes_for :networks
-  accepts_nested_attributes_for :meter_instance
   accepts_nested_attributes_for :volumes
 
   # Infrastructure Statuses: created, updated, deleted, disabled, verified_create, verified_update
   scope :to_be_created_or_updated, -> { where(:record_status.in => ['created','updated']) }
-  scope :enabled, ->{ where('meter_instance.enabled': true) }
+  # TODO: Verify if we still need this index
+  scope :enabled, -> { where(enabled: true) }
 
   index({ record_status: 1 })
-  index({ 'meter_instance.enabled': 1 })
 
+  # TODO: Verify if we still need this index
+  index({enabled: 1})
 
   def total_server_count; @total_server_count ||= hosts.size; end
   def total_cpu_cores; @total_cpu_cores ||= infrastructure_totals[:cpu_cores]; end
@@ -65,36 +72,32 @@ class Infrastructure
       totals
     end
   end
-  # attr_reader :total_storage_gb
-  # attr_reader :total_disk_io_kilobytes_per_second
-  # attr_reader :total_lan_io_kilobits_per_second
-  # attr_reader :total_wan_io_kilobits_per_second
-  # attr_reader :vcpu_per_machine
-  # attr_reader :machines_per_core
 
+  # TODO CHECK IF WE STILL NEED THIS METHOD
   def enabled?
-    # Assumes 1:1 meter:infrastructure ratio
-    self.meter_instance.enabled
+    self.enabled
   end
 
   def disable
-    self.meter_instance.update_attribute('enabled', false)
-  end
-  def enable
-    self.meter_instance.update_attribute('enabled', true)
+    self.update_attribute('enabled', false)
   end
 
-  def submit_create(infrastructure_endpoint)
+  def enable
+    self.update_attribute('enabled', true)
+  end
+
+  def submit_create
     response = nil
     begin
       logger.info "Submitting #{name} to API for creation in UC6"
       self.tags = name if tags.blank?
-      response = hyper_client.post(infrastructure_endpoint, api_format)
-
+      response = hyper_client.post(infrastructures_post_url, api_format)
       if ( response and response.code == 200 )
-        self.remote_id = response.remote_id
-        self.meter_instance = MeterInstance.find_or_create_in_uc6(infrastructure_name: name,
-                                                                  infrastructure_endpoint: "#{infrastructure_endpoint}/#{remote_id}")
+        self.remote_id = response.json['id']
+        # TODO: see if we need this at this place
+        self.enabled = 'true'
+        self.release_version = configuration[:uc6_meter_version]
+
         self.update_attribute(:record_status, 'verified_create')  # record_status will be ignored by local_inventory class, so we need to update it "manually"
       else
         logger.error "Unable to create infrastructure in UC6 for #{name}"
@@ -102,15 +105,13 @@ class Infrastructure
       end
 
     rescue RestClient::Conflict => e
-      logger.warn "Infrastructure already exists in UC6; attempting to update local instance to match"
-      infrastructures = hyper_client.get_all_resources(infrastructure_endpoint)
+      logger.warn 'Infrastructure already exists in UC6; attempting to update local instance to match'
+      infrastructures = hyper_client.get_all_resources(infrastructures_url)
       me_as_json = infrastructures.find{|inf| inf['name'].eql?(name) }
 
       if ( me_as_json )
         # record_status will be ignored by local_inventory class, so we need to update it "manually"
         self.update_attributes(record_status: 'verified_create', remote_id: me_as_json['remote_id'])
-        self.meter_instance = MeterInstance.find_or_create_in_uc6(infrastructure_name: name,
-                                                                  infrastructure_endpoint: "#{infrastructure_endpoint}/#{remote_id}")
       else
         logger.error "Could not retrieve remote_id from conflict response for infrastructure: #{infrastructure.name}"
       end
@@ -122,8 +123,8 @@ class Infrastructure
     self
   end
 
-  def submit_update(infrastructure_endpoint)
-    response = hyper_client.put("#{infrastructure_endpoint}/#{remote_id}", api_format.merge(status: 'Active'))
+  def submit_update
+    response = hyper_client.put(infrastructure_url(infrastructure_id: remote_id), api_format.merge(status: 'Active'))
   end
 
   def attribute_map
@@ -171,5 +172,4 @@ class Infrastructure
       volumes: self.volumes.map{|v| v.api_format}
     }
   end
-
 end
