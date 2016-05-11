@@ -93,7 +93,7 @@ class Infrastructure
       self.tags = name if tags.blank?
       response = hyper_client.post(infrastructures_post_url, api_format)
       if ( response and response.code == 200 )
-        self.remote_id = JSON.parse(response)["id"]
+        self.remote_id = response.json['id']
         # TODO: see if we need this at this place
         self.enabled = 'true'
         self.release_version = configuration[:uc6_meter_version]
@@ -105,7 +105,7 @@ class Infrastructure
       end
 
     rescue RestClient::Conflict => e
-      logger.warn "Infrastructure already exists in UC6; attempting to update local instance to match"
+      logger.warn 'Infrastructure already exists in UC6; attempting to update local instance to match'
       infrastructures = hyper_client.get_all_resources(infrastructures_url)
       me_as_json = infrastructures.find{|inf| inf['name'].eql?(name) }
 

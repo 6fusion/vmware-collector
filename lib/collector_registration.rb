@@ -4,11 +4,13 @@ require 'global_configuration'
 require 'json'
 require 'logging'
 require 'rest_client_extensions'
+require 'uc6_url_generator'
 require 'vsphere_session'
 require 'metrics_collector'
 
 class CollectorRegistration
   include GlobalConfiguration
+  include UC6UrlGenerator
   include Logging
   include VSphere
 
@@ -26,7 +28,7 @@ class CollectorRegistration
       if @configuration.present_value?(:uc6_api_host)
         verify_connection_retrieving_missing_info
       else
-        logger.error "There is missing information on the configuration file"
+        logger.error 'There is missing information on the configuration file'
         exit(1)
       end
     end
@@ -41,7 +43,7 @@ class CollectorRegistration
           session = VSphere::session
           if ( session.serviceInstance.content.rootFolder )
              if ( MetricsCollector::level_3_statistics_enabled? )
-	       logger.info "Succesful connected to vsphere"
+	       logger.info 'Succesful connected to vsphere'
 	       @configuration[:verified_vsphere_connection] = true
 	     else
                logger.error 'vSphere level 3 statistics must be enabled at the 5-minute interval'
@@ -76,7 +78,7 @@ class CollectorRegistration
     if uc6_api_configured? && oauth_succesful?
       retrieve_organization_name
       @configuration[:verified_api_connection] = true
-      logger.info "Succesful connected with uc6 api"
+      logger.info 'Succesful connected with uc6 api'
     else
       exit(1)
     end
@@ -86,7 +88,7 @@ class CollectorRegistration
     retrieve_organization_name
     if @configuration.present_value?(:uc6_organization_name)
       @configuration[:verified_api_connection] = true
-      logger.info "Succesful connected with uc6 api"
+      logger.info 'Succesful connected with uc6 api'
     end
   end
 
@@ -126,7 +128,7 @@ class CollectorRegistration
       if ( can_connect?(:uc6_api_host, URI.parse(@configuration[:uc6_api_host]).port) )
         if ( e.is_a?(OAuth2::Error) )
         # The OAuth2 error messages are useless, so we don't bother showing it to the user
-          logger.error "Authentication token could not be retrieved. Please verify the UC6 API credentials."
+          logger.error 'Authentication token could not be retrieved. Please verify the UC6 API credentials.'
         else
           logger.error "Authentication token could not be retrieved: #{e.message}"
         end
@@ -160,11 +162,17 @@ class CollectorRegistration
   def retrieve_organization_name
     hyper_client = HyperClient.new
     if @configuration.present_value?(:uc6_organization_id)
-      url = "#{@configuration[:uc6_api_endpoint]}/organizations/#{@configuration[:uc6_organization_id]}.json"
-      response = hyper_client.get(url)
-      if response
+      response = hyper_client.get(organization_url)
+      if response and response.code == 200
         result = response.json
-        @configuration[:uc6_organization_name] = result["name"] if result["name"]
+        begin
+          @configuration[:uc6_organization_name] = result['name'] if result['name']
+        rescue
+          logger.error "Organization name could not be retrieved from #{response.json}"
+        end
+      else
+        logger.error "Something other than a 200 returned at #{__LINE__}: #{response.code}"
+        logger.debug response.body
       end
     end
   end

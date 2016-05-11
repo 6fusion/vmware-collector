@@ -27,7 +27,7 @@ class UC6Connector
   using RbVmomiExtensions
 
   def initialize
-    logger.info "Initializing UC6 Connector"
+    logger.info 'Initializing UC6 Connector'
     @hyper_client = HyperClient.new
     @local_infrastructure_inventory = InfrastructureInventory.new(:name)
     @local_platform_remote_id_inventory = PlatformRemoteIdInventory.new
@@ -68,10 +68,8 @@ class UC6Connector
   def initialize_platform_ids
     Infrastructure.enabled.each do |infrastructure|
       local_inventory = MachineInventory.new(infrastructure)
-      logger.info "LOCAL INVENTORY => #{local_inventory.inspect}\n\n"
       uc6_inventory = retrieve_machines(infrastructure){|msg| yield msg if block_given? } #this is so the registration wizard can scroll names as they're retrieved, I think
       local_inventory.each do |platform_id, local_machine|
-        logger.debug "UC6 INVENTORY => #{uc6_inventory} \n\n platform_id => #{platform_id}\n\n"
         if ( uc6_inventory.has_key?(platform_id) )
           #!! if the machine exists in UC6, we need to get its status set to something other than 'created', so we don't create it again
           #  updated is good because if there are changes locally, we'll still push them up
@@ -93,9 +91,6 @@ class UC6Connector
 
           # Need to call #to_a on Mongoid collection to use find, otherwise doesn't work correctly
           # Need to map by name, only piece of info in UC6 that can use to map with VSphere result
-          logger.debug "UC6_MACHINE => #{uc6_machine.inspect}\n\n"
-          logger.debug "Local machines disks =>#{local_machine.disks.inspect}\n\n"
-          logger.debug "Local machines nics =>#{local_machine.nics.inspect}\n\n"
           local_machine.disks.each do |local_disk|
             if ( remote_disk = uc6_machine.disks.to_a.find{|md| md.name.eql?(local_disk.name)} )
               disk_key = "i:#{local_machine.infrastructure_platform_id}/" \
@@ -137,7 +132,7 @@ class UC6Connector
   def submit_reading_creates
     queued = Reading.where(record_status: 'created').count
     if ( queued == 0 )
-      logger.debug "No readings queued for submission"
+      logger.debug 'No readings queued for submission'
     else
       logger.info "Preparing to submit #{queued} readings"
 
@@ -171,7 +166,6 @@ class UC6Connector
   end
 
   def submit_infrastructure_creates
-    logger.info "On submit infrastructure creates"
     infrastructure_creates = Infrastructure.where(record_status: 'created')
     if ( infrastructure_creates.size > 0 )
       logger.info "Processing #{infrastructure_creates.size} new infrastructures for submission to UC6"
@@ -339,7 +333,6 @@ class UC6Connector
   def submit_machine_updates
     if ( InventoriedTimestamp.most_recent )
       updated_machines = Machine.to_be_updated #(latest_inventory.inventory_at)
-      logger.info "SUBMIT MACHINE UPDATES #{updated_machines.inspect}\n\n"
       if ( updated_machines.size > 0 )
         logger.info "Processing #{updated_machines.size} machines that have configuration updates for UC6"
       else
@@ -583,10 +576,9 @@ class UC6Connector
       response = @hyper_client.get(retrieve_machine(remote_id))
       if ( response.code == 200 )
         machine_json = JSON.parse(response)
-        logger.debug "\n\n\n MACHINE JSON = > #{machine_json}\n\n\n\n\n"
         machine = Machine.new(remote_id:     machine_json['id'],
                               name:          machine_json['name'],
-                              virtual_name:  machine_json['custom_id'], #CHECK THIS AS IN ON PREM THERE IS NO VIRTUAL NAME 
+                              virtual_name:  machine_json['custom_id'],
                               cpu_count:     machine_json['cpu_count'],
                               cpu_speed_mhz: machine_json['cpu_speed_hz'],
                               memory_bytes:  machine_json['memory_bytes'],
@@ -595,7 +587,7 @@ class UC6Connector
         disks_json = machine_json['embedded']['disks']
         machine.disks = disks_json.map{|dj| Disk.new(remote_id: dj['id'],
                                                      name: dj['name'],
-                                                     platform_id: dj['uuid'], #THIS DOES NOT COME ANYMORE FROM ON PREM
+                                                     platform_id: dj['uuid'],
                                                      type: 'Disk',
                                                      size: dj['storage_bytes']) }
 
@@ -631,7 +623,7 @@ class UC6Connector
           virtual_name: m['custom_id'],
           cpu_count: m['cpu_count'],
           cpu_speed_mhz: m['cpu_speed_mhz'],
-          memory_bytes: m['maximum_memory_bytes'],
+          memory_bytes: m['memory_bytes'],
           status: m['status']
         }
         Machine.new(properties)
@@ -645,7 +637,7 @@ class UC6Connector
   end
 
   def pause(reset_time)
-    logger.warn "API request limit reached"
+    logger.warn 'API request limit reached'
 
     if ( reset_time )
       sleepy_time = (reset_time - Time.now).to_i
