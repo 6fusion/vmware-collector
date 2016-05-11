@@ -7,7 +7,7 @@ module VSphere
     @vsphere_session ||= VSphereSession.new.session
   end
   def self.refresh
-    Logging::MeterLog.instance.logger.debug "Refreshing vSphere session"
+    Logging::MeterLog.instance.logger.debug 'Refreshing vSphere session'
     @vsphere_session = VSphereSession.new.session
   end
 
@@ -35,7 +35,7 @@ module VSphere
           # Will try refresh this way
           VSphere::refresh
         # end
-        Logging::MeterLog.instance.logger.info "Session expired; requesting new session"
+        Logging::MeterLog.instance.logger.info 'Session expired; requesting new session'
         retry
       end
       raise e
@@ -51,7 +51,7 @@ module VSphere
 
     def initialize
       logger = Logging::MeterLog.instance.logger
-      logger.debug "Connecting to vSphere"
+      logger.info 'Connecting to vSphere'
       @session = get_vsphere_session
     end
 
@@ -92,13 +92,13 @@ module VSphere
         logger.debug e.backtrace.join("\n");
         raise e
       rescue Net::OpenTimeout, Timeout::Error => e
-        logger.fatal("Could not connect to vSphere: connection attempt timed out.")
+        logger.fatal('Could not connect to vSphere: connection attempt timed out.')
         logger.fatal(e.message)
         logger.info(configuration.to_s)
         logger.debug e.backtrace.join("\n");
         raise e
       rescue OpenSSL::SSL::SSLError => e
-        logger.fatal("Could not connect to vSphere: SSL verification error.")
+        logger.fatal('Could not connect to vSphere: SSL verification error.')
         logger.fatal e.message
         logger.debug e.backtrace.join("\n");
         raise e
