@@ -163,7 +163,7 @@ class CollectorRegistration
     hyper_client = HyperClient.new
     if @configuration.present_value?(:uc6_organization_id)
       response = hyper_client.get(organization_url)
-      if response and response.code == 200
+      if response && response.code == 200
         result = response.json
         begin
           @configuration[:uc6_organization_name] = result['name'] if result['name']
