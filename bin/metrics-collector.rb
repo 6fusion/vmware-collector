@@ -1,7 +1,8 @@
 #!/usr/bin/env ruby -W0
-$:.unshift 'lib','lib/models', 'lib/shared'
+$:.unshift 'lib', 'lib/shared', 'lib/models', 'lib/modules'
 require 'bundler'
 Bundler.require(:default, ENV['METER_ENV'] || :development)
+require 'rake'
 
 require 'inventoried_timestamp'
 require 'metrics_collector'
@@ -10,22 +11,20 @@ require 'infrastructure'
 require 'inventory_collector'
 require 'local_inventory'
 require 'logging'
+require 'initialize_collector_configuration'
 require 'signal_handler'
 require 'vsphere_session'
 require 'collector_registration'
 require 'collector_syncronization'
-
+require 'vmware_configuration'
 
 include Logging
 include SignalHandler
+include InitializeCollectorConfiguration
 
-Thread::abort_on_exception = true
-registration = CollectorRegistration.new
-registration.configure_uc6
-registration.configure_vsphere
-sync = CollectorSyncronization.new
-sync.sync_data
-if ( ! GlobalConfiguration::GlobalConfig.instance.configured? )
+init_configuration
+
+if ( !VmwareConfiguration.first.configured )
   logger.info "Metrics collector has not been configured. Please configure using the registration wizard."
   exit(0)
 end

@@ -2,7 +2,6 @@ require 'rbvmomi_extensions'
 
 require 'vsphere_session'
 
-
 class VSphereEventCollector
   include Logging
   using RbVmomiExtensions
@@ -12,15 +11,13 @@ class VSphereEventCollector
     @end_time = end_time
   end
 
-
   def event_history
-    @event_history ||= VSphere::session.serviceContent.eventManager.CreateCollectorForEvents(filter: event_filter_spec)
+    @event_history ||= VSphere.session.serviceContent.eventManager.CreateCollectorForEvents(filter: event_filter_spec)
   end
-
 
   def events
     @events ||= begin
-      vm_events = Hash.new{|h,k| h[k] = Hash.new{|h2,k2,| h2[k2] = Set.new  } }
+      vm_events = Hash.new { |h, k| h[k] = Hash.new { |h2, k2,| h2[k2] = Set.new } }
 
     event_history.ReadNextEvents(maxCount: 500).each do |event|
       event_type = event.class.to_s
@@ -49,15 +46,16 @@ class VSphereEventCollector
   end
 
   private
-  #!! can a deleted machine be resurrected?
+
+  # !! can a deleted machine be resurrected?
   def vm_create_events
-    #!! check on: MigrationEvent VmEmigratingEvent VmMigratedEvent
+    # !! check on: MigrationEvent VmEmigratingEvent VmMigratedEvent
     @vm_create_events ||= Set.new(%w(VmClonedEvent VmCreatedEvent VmDeployedEvent VmDiscoveredEvent VmRegisteredEvent))
   end
 
   def vm_remove_events
-    #!! check on: MigrationEvent VmEmigratingEvent  VmDeployFailedEvent VmDisconnectedEvent VmOrphanedEvent  VmFailedMigrateEvent VmFailoverFailed
-    @vm_remove_events ||=  Set.new(%w(VmRemovedEvent))
+    # !! check on: MigrationEvent VmEmigratingEvent  VmDeployFailedEvent VmDisconnectedEvent VmOrphanedEvent  VmFailedMigrateEvent VmFailoverFailed
+    @vm_remove_events ||= Set.new(%w(VmRemovedEvent))
   end
 
   def event_filter_spec
@@ -68,9 +66,7 @@ class VSphereEventCollector
     logger.debug "vm_remove_events: #{vm_remove_events.to_a}"
     logger.debug "time_spec: #{time_spec.inspect}"
 
-    RbVmomi::VIM.EventFilterSpec( eventTypeId: (vm_create_events + vm_remove_events).to_a,
-                                  time: time_spec )
+    RbVmomi::VIM.EventFilterSpec(eventTypeId: (vm_create_events + vm_remove_events).to_a,
+                                 time: time_spec)
   end
-
-
 end

@@ -21,10 +21,11 @@ class CollectorSyncronization
   def initialize
     @environment = ENV['METER_ENV'] || 'development'
     @configuration = GlobalConfiguration::GlobalConfig.instance
+    @configured = !VmwareConfiguration.empty?
   end
 
   def sync_data
-    start_sync if access_granted?
+    start_sync if access_granted? && !@configured
   end
 
   private
@@ -33,21 +34,25 @@ class CollectorSyncronization
     @configuration[:verified_api_connection] && @configuration[:verified_vsphere_connection]
   end
 
+  def set_configured
+    VmwareConfiguration.create(configured: true)
+    @configured = true
+  end
+
   def start_sync
-    begin
-      logger.info 'Syncing items'
-      @uc6_connector = UC6Connector.new
-      collect_infrastructures
-      submit_infrastructures
-      collect_machine_inventory
-      sync_remote_ids
-    rescue StandardError => e
-      logger.error e
-      logger.error e.backtrace.join("\n")
-      if ( e.is_a?(RestClient::Exception) )
-        logger.error e.to_s
-        logger.error e.http_body
-      end
+    logger.info 'Syncing items'
+    @uc6_connector = UC6Connector.new
+    collect_infrastructures
+    submit_infrastructures
+    collect_machine_inventory
+    sync_remote_ids
+    set_configured
+  rescue StandardError => e
+    logger.error e
+    logger.error e.backtrace.join("\n")
+    if e.is_a?(RestClient::Exception)
+      logger.error e.to_s
+      logger.error e.http_body
     end
   end
 
@@ -72,7 +77,7 @@ class CollectorSyncronization
     hyper_client = HyperClient.new
     response = hyper_client.get(infrastructures_url)
 
-    if ( response.code == 200 )
+    if response.code == 200
       @configuration[:uc6_proxy_password] = proxy
       @configuration[:vsphere_password] = vsphere
     else
@@ -97,16 +102,14 @@ class CollectorSyncronization
       end
     end
     machine_count = Machine.distinct(:platform_id).count
-    if ( machine_count == 0 )
-      raise 'No virtual machine inventory discovered'
-    end
-    inventoried_timestamp.delete  # Leaving this behind creates "gaps" between this inventory time and when the user clicks "start metering"
+    raise 'No virtual machine inventory discovered' if machine_count == 0
+    inventoried_timestamp.delete # Leaving this behind creates "gaps" between this inventory time and when the user clicks "start metering"
     logger.info "#{machine_count} virtual machine#{'s' if machine_count > 1} discovered"
   end
 
   def sync_remote_ids
     logger.info 'Syncing remote ids'
-    @uc6_connector.initialize_platform_ids{|msg| logger.info  msg }
+    @uc6_connector.initialize_platform_ids { |msg| logger.info msg }
     logger.info 'Local inventory synced with UC6'
   end
 end

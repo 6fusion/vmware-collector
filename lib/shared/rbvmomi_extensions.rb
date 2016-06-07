@@ -270,7 +270,7 @@ module RbVmomiExtensions
         begin
           if ( property.name.eql?('summary') )
             attributes[:accessible] = property.val.accessible
-            attributes[:maximum_size_bytes] = property.val.capacity
+            attributes[:storage_bytes] = property.val.capacity
             attributes[:free_space] = property.val.freeSpace
             attributes[:volume_type] = property.val.type
             attributes[:name] = property.val.name

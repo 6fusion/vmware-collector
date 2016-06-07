@@ -24,7 +24,7 @@ class CollectorRegistration
   def configure_uc6
     if credentials_present?
       verify_connection_from_credentials
-    else #no credentials
+    else # no credentials
       if @configuration.present_value?(:uc6_api_host)
         verify_connection_retrieving_missing_info
       else
@@ -35,43 +35,41 @@ class CollectorRegistration
   end
 
   def configure_vsphere
-    begin
-      return false unless can_connect?(:vsphere_host, 443)
-      if ( @configuration.vsphere_configured? )
-        Timeout::timeout(15) do
-          VSphere::refresh
-          session = VSphere::session
-          if ( session.serviceInstance.content.rootFolder )
-             if ( MetricsCollector::level_3_statistics_enabled? )
-	       logger.info 'Succesful connected to vsphere'
-	       @configuration[:verified_vsphere_connection] = true
-	     else
-               logger.error 'vSphere level 3 statistics must be enabled at the 5-minute interval'
-	     end
+    return false unless can_connect?(:vsphere_host, 443)
+    if @configuration.vsphere_configured?
+      Timeout.timeout(15) do
+        VSphere.refresh
+        session = VSphere.session
+        if session.serviceInstance.content.rootFolder
+          if MetricsCollector.level_3_statistics_enabled?
+            logger.info 'Succesful connected to vsphere'
+            @configuration[:verified_vsphere_connection] = true
           else
-            logger.error 'Could not access vSphere rootFolder. Please verify the supplied credentials are correct and have sufficient access privileges.'
+            logger.error 'vSphere level 3 statistics must be enabled at the 5-minute interval'
           end
+        else
+          logger.error 'Could not access vSphere rootFolder. Please verify the supplied credentials are correct and have sufficient access privileges.'
         end
       end
-    rescue Timeout::Error => e
-      logger.debug VSphere::session
-      logger.debug VSphere::session.inspect
-      logger.error 'Could not access vSphere: operation timed out.  Please verify the supplied access information.'
-    rescue OpenSSL::SSL::SSLError => e
-      logger.error 'Could not access vSphere: SSL verification error.'
-    rescue StandardError => e
-      logger.debug VSphere::session
-      logger.debug VSphere::session.inspect
-      logger.error 'Could not access vSphere. Please verify the supplied user has sufficient access privileges.'
-      false
     end
+  rescue Timeout::Error => e
+    logger.debug VSphere.session
+    logger.debug VSphere.session.inspect
+    logger.error 'Could not access vSphere: operation timed out.  Please verify the supplied access information.'
+  rescue OpenSSL::SSL::SSLError => e
+    logger.error 'Could not access vSphere: SSL verification error.'
+  rescue StandardError => e
+    logger.debug VSphere.session
+    logger.debug VSphere.session.inspect
+    logger.error 'Could not access vSphere. Please verify the supplied user has sufficient access privileges.'
+    false
   end
 
   private
 
   def credentials_present?
     @configuration.present_value?(:uc6_application_id) && @configuration.present_value?(:uc6_application_secret) &&
-    @configuration.present_value?(:uc6_login_email) && @configuration.present_value?(:uc6_login_password)
+        @configuration.present_value?(:uc6_login_email) && @configuration.present_value?(:uc6_login_password)
   end
 
   def verify_connection_from_credentials
@@ -93,17 +91,20 @@ class CollectorRegistration
   end
 
   def uc6_api_configured?
-    @configuration.present_value?(:uc6_api_host) && is_valid_user?
+    @configuration.present_value?(:uc6_api_host) && valid_user?
   end
 
-  def is_valid_user?
-    @configuration.blank_value?(:uc6_refresh_token) ?
-      validate_email && validate_password :
+  def valid_user?
+    if @configuration.blank_value?(:uc6_refresh_token)
+      validate_email && validate_password
+    else
       true
+    end
   end
 
   def validate_email
-    @configuration.present_value?(:uc6_login_email) && !!(@configuration[:uc6_login_email] =~ EMAIL_REGEX)
+    @configuration.present_value?(:uc6_login_email) &&
+        !!(@configuration[:uc6_login_email] =~ EMAIL_REGEX)
   end
 
   def validate_password
@@ -113,50 +114,49 @@ class CollectorRegistration
   def oauth_succesful?
     hyper_client = HyperClient.new
     begin
-    # On first registration, these will already be blank. But if a user wanted to change a pasword,
-    #  we need to force a token request, so we make sure these are blanked out
+      # On first registration, these will already be blank. But if a user wanted to change a pasword,
+      #  we need to force a token request, so we make sure these are blanked out
       GlobalConfiguration::GlobalConfig.instance.delete(:uc6_oauth_token)
       hyper_client.reset_token
       # trigger retrieval of new token
-      if ( hyper_client.oauth_token.blank? )
+      if hyper_client.oauth_token.blank?
         puts 'access token could not be retrieved. Please verify UC6 API options.'
         return false
       else
         return true
       end
     rescue StandardError => e
-      if ( can_connect?(:uc6_api_host, URI.parse(@configuration[:uc6_api_host]).port) )
-        if ( e.is_a?(OAuth2::Error) )
-        # The OAuth2 error messages are useless, so we don't bother showing it to the user
+      if can_connect?(:uc6_api_host, URI.parse(@configuration[:uc6_api_host]).port)
+        if e.is_a?(OAuth2::Error)
+          # The OAuth2 error messages are useless, so we don't bother showing it to the user
           logger.error 'Authentication token could not be retrieved. Please verify the UC6 API credentials.'
         else
           logger.error "Authentication token could not be retrieved: #{e.message}"
         end
-      #else Errors are added as part of can_connect? method
+        # else Errors are added as part of can_connect? method
       end
     end
   end
 
   def can_connect?(field, port)
-    begin
-      Timeout::timeout(10) {
-        host = @configuration[field].slice(%r{(?:https*://)?([^:]+)(?::\d+)*}i, 1)
-        Resolv.new.getaddress(host)
-        TCPSocket.new(host, port).close
-        true }
-    rescue Timeout::Error => e
-      logger.error "#{field} : timed during check: #{e.message}"
-      false
-    rescue Resolv::ResolvError => e
-      logger.error "#{field} :could not be resolved: #{e.message}"
-      false
-    rescue Errno::ECONNREFUSED => e
-      logger.error "#{field} :could not be connected to on port #{port}: #{e.message}"
-      false
-    rescue StandardError => e
-      logger.error "#{field} :could not be validated: #{e.message}"
-      false
+    Timeout.timeout(10) do
+      host = @configuration[field].slice(%r{(?:https*://)?([^:]+)(?::\d+)*}i, 1)
+      Resolv.new.getaddress(host)
+      TCPSocket.new(host, port).close
+      true
     end
+  rescue Timeout::Error => e
+    logger.error "#{field} : timed during check: #{e.message}"
+    false
+  rescue Resolv::ResolvError => e
+    logger.error "#{field} :could not be resolved: #{e.message}"
+    false
+  rescue Errno::ECONNREFUSED => e
+    logger.error "#{field} :could not be connected to on port #{port}: #{e.message}"
+    false
+  rescue StandardError => e
+    logger.error "#{field} :could not be validated: #{e.message}"
+    false
   end
 
   def retrieve_organization_name

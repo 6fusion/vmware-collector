@@ -4,7 +4,6 @@ require 'disk'
 require 'nic'
 require 'matchable'
 require 'uc6_url_generator'
-
 class Machine
   include Mongoid::Document
   include Mongoid::Timestamps
@@ -23,10 +22,10 @@ class Machine
   field :os,            type: String,   default: ""
   field :virtual_name,  type: String,   default: ""
   field :cpu_count,     type: Integer,  default: 1  # Console requires a value for count and mhz > 0
-  field :cpu_speed_mhz, type: Integer,  default: 1
+  field :cpu_speed_hz, type: Integer,  default: 1
   field :memory_bytes,  type: Integer,  default: 0
   field :status,        type: String,   default: 'unknown'
-  field :tags,          type: String,   default: '' # Currently not supported by vSphere API
+  field :tags,          type: Array,   default: []
   field :metrics,       type: Hash
   field :submitted_at,  type: DateTime
 
@@ -88,7 +87,6 @@ class Machine
 
   def self.build_from_vsphere_vm(attribute_set)
     machine = Machine.new
-
     machine.assign_machine_attributes(attribute_set)
     machine.assign_machine_disks(attribute_set[:disks])
     machine.assign_machine_nics(attribute_set[:nics])
@@ -172,13 +170,14 @@ class Machine
   # Format to submit to UC6 Console API
   def api_format
     machine_api_format = {
-       "name": name,
-       "custom_id": platform_id,
-       "cpu_count": cpu_count,
-       "cpu_speed_hz": cpu_speed_mhz, #CHECK THIS IF WE NEED TO CONVERT IT TO HZ
-       "memory_bytes": memory_bytes,
-       "status": status,
-       "infrastructure_id": infrastructure_remote_id
+       'name': name,
+       'custom_id': platform_id,
+       'cpu_count': cpu_count,
+       'cpu_speed_hz': cpu_speed_hz,
+       'memory_bytes': memory_bytes,
+       'status': status,
+       'infrastructure_id': infrastructure_remote_id,
+       'tags': tags
     }
 
     # !!! Make sure if field is missing these won't blow up
@@ -205,7 +204,6 @@ class Machine
         # Machine create (POST) doesn't return remote_ids for disks and nics
         # So, do additional request here and map disk/nic remote_ids back to self
         assign_disks_nics_remote_ids(self.remote_id)
-
         self.submitted_at = Time.now.utc
         self.record_status = 'verified_create'
       end
@@ -314,7 +312,7 @@ class Machine
     # If they are default values, then use previous (would be default if VSphere doesn't provide, true for VSphere updates)
     self.cpu_count = other.cpu_count if self.cpu_count.eql?(1)
     self.status = other.status if self.status.eql?('unknown')
-    self.cpu_speed_mhz = other.cpu_count if self.cpu_speed_mhz.eql?(1)
+    self.cpu_speed_hz = other.cpu_count if self.cpu_speed_hz.eql?(1)
 
 
     # !!! This code may be necessary for dealing with lost data during migration
@@ -343,13 +341,13 @@ class Machine
   private
   def assign_disk_remote_ids(response_disks_json)
     response_disks_ids_names = {}
-    response_disks_json.each { |disk| response_disks_ids_names[disk['name']] = disk['remote_id'] } #PENDING TO VERIFY DISKS NICS ID/REMOTE_ID
+    response_disks_json.each { |disk| response_disks_ids_names[disk['name']] = disk['id'] }
     self.disks.each { |disk| disk.remote_id = response_disks_ids_names[disk.name] unless disk.remote_id } # Only need to update if no remote id
   end
 
   def assign_nic_remote_ids(response_nics_json)
     response_nics_ids_names = {}
-    response_nics_json.each { |nic| response_nics_ids_names[nic['name']] = nic['remote_id'] } #PENDING TO VERIFY DISKS NICS ID/REMOTE_ID
+    response_nics_json.each { |nic| response_nics_ids_names[nic['name']] = nic['id'] }
     self.nics.each { |nic| nic.remote_id = response_nics_ids_names[nic.name] unless nic.remote_id } # Only need to update if no remote id
   end
 

@@ -1,24 +1,25 @@
 #!/usr/bin/env ruby -W0
 require 'bundler'
 Bundler.require(:default, ENV['METER_ENV'] || :development)
-$:.unshift 'lib', 'lib/shared', 'lib/models'
+$:.unshift 'lib', 'lib/shared', 'lib/models', 'lib/modules'
+require 'rake'
 
 require 'global_configuration'
 require 'logging'
+require 'initialize_collector_configuration'
 require 'signal_handler'
 require 'uc6_connector'
 require 'collector_registration'
 require 'collector_syncronization'
+require 'vmware_configuration'
 include Logging
 include SignalHandler
+include InitializeCollectorConfiguration
 
-Thread::abort_on_exception = true
-registration = CollectorRegistration.new
-registration.configure_uc6
-registration.configure_vsphere
-sync = CollectorSyncronization.new
-sync.sync_data
-if ( ! GlobalConfiguration::GlobalConfig.instance.configured? )
+
+init_configuration
+
+if ( !VmwareConfiguration.first.configured )
   logger.info "UC6 connector has not been configured. Please configure using the registration wizard."
   exit(0)
 end
