@@ -62,6 +62,12 @@ class MachineReading
     end
 
     # Iterate over the *aggregated* readings, convert them to proper reading docs, and update them as appropriate
+    update_readings_status(status)
+
+    (response && response.code == 200)
+  end
+
+  def update_readings_status(status)
     readings.each do |r|
       begin
         reading = Reading.find(r['_id'])
@@ -73,8 +79,6 @@ class MachineReading
         logger.warn e.message
       end
     end
-
-    (response && response.code == 200)
   end
 
   private

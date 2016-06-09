@@ -163,16 +163,18 @@ class CollectorRegistration
     hyper_client = HyperClient.new
     if @configuration.present_value?(:uc6_organization_id)
       response = hyper_client.get(organization_url)
-      if response && response.code == 200
+      if response.present?
         result = response.json
         begin
-          @configuration[:uc6_organization_name] = result['name'] if result['name']
+          if response.code == 200
+            @configuration[:uc6_organization_name] = result['name'] if result['name']
+          end
         rescue
           logger.error "Organization name could not be retrieved from #{response.json}"
         end
       else
-        logger.error "Something other than a 200 returned at #{__LINE__}: #{response.code}"
-        logger.debug response.body
+        logger.error 'UC6 API could not be reached. Please verify UC6 API options and that the UC6 API is up.'
+        exit(1)
       end
     end
   end

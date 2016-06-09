@@ -27,13 +27,13 @@ init_configuration
 
 def main
   if ( !VmwareConfiguration.first.configured )
-    logger.info "Inventory collector has not been configured. Please configure using the registration wizard."
+    logger.info 'Inventory collector has not been configured. Please configure using the registration wizard.'
     exit(0)
   end
 
   scheduler = Rufus::Scheduler.new(max_work_threads: 1)
 
-  logger.info "Scheduling infrastructure collection to run every 5 minutes"
+  logger.info 'Scheduling infrastructure collection to run every 5 minutes'
 
   scheduler.cron '*/5 * * * *' do |job|
     processSignals
@@ -47,7 +47,7 @@ def main
       else
         inventoried_timestamp.save
         collector_queue = active_collectors
-        logger.debug "No active datacenters configured. No machine inventory will be collected." if collector_queue.empty?
+        logger.debug 'No active datacenters configured. No machine inventory will be collected.' if collector_queue.empty?
         # Give up after 9 minutes (this keeps us from falling behind by more than one run)
         Timeout::timeout(9*60) do
           threads = []
@@ -79,7 +79,7 @@ def main
   end
 
   scheduler.join
-  logger.info "Shutting down inventory collector"
+  logger.info 'Shutting down inventory collector'
 end
 
 
@@ -107,12 +107,10 @@ end
 def active_collectors
   # If a data center is passed into the container, only hit that one. Otherwise, intstantiate a collector
   #  for each active infrastructure/datacenter/meter
-  logger.info "InfrastructureInventory => #{(InfrastructureInventory.new).inspect}\n\n"
   infrastructures = configuration.present_value?(:data_center) ?
                       InfrastructureInventory.new.select{|key,inf| inf.name.eql?(configuration[:data_center])} :
                       InfrastructureInventory.new
 
-  logger.info "INFRASTRUCTURES => #{infrastructures.inspect}"
   infrastructures.each_value {|infrastructure|
     infrastructure.enabled? ? activate(infrastructure) : deactivate(infrastructure) }
   # Remove any that we know about, but are no longer returned by InfrastructureInventory (which filters out disabled)

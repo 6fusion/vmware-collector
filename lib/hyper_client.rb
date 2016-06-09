@@ -45,7 +45,7 @@ class HyperClient
       end
     rescue StandardError => e
       logger.error "#{e.message} for get request to #{url}"
-      logger.error JSON.parse(e.response)['message']
+      logger.error e.inspect
       logger.debug merged_headers.to_json
       logger.debug e
       raise e
@@ -72,7 +72,7 @@ class HyperClient
     rescue StandardError => e
       logger.error "#{e.message} for post request to #{url}"
       logger.debug merged_headers
-      logger.debug e.response
+      logger.debug e.inspect
       raise e
     end
   end
@@ -96,7 +96,7 @@ class HyperClient
       end
     rescue StandardError => e
       logger.error "#{e.message} for put request to #{url}"
-      logger.error JSON.parse(e.response)['message']
+      logger.error e.inspect
       logger.debug merged_headers.to_json
       logger.debug e.backtrace
       raise e
@@ -122,7 +122,7 @@ class HyperClient
       end
     rescue StandardError => e
       logger.error "#{e.message} for delete request to #{url}"
-      logger.error JSON.parse(e.response)['message']
+      logger.error e.inspect
       logger.debug merged_headers.to_json
       logger.debug e
       raise e
@@ -178,8 +178,7 @@ class HyperClient
             retry
           end
           logger.error 'Unable to authorize user account for submission API'
-          logger.error JSON.parse(e.response)['message']
-          logger.debug e
+          logger.error e.inspect
           logger.debug @configuration.to_s
           raise e
         rescue StandardError => e

@@ -54,11 +54,11 @@ module UC6UrlGenerator
   end
 
   def retrieve_machine(machine_remote_id)
-    "#{configuration[:uc6_api_endpoint]}/machines/#{machine_remote_id}.json"
+    "#{configuration[:uc6_api_endpoint]}/machines/#{machine_remote_id}.#{request_format}"
   end
 
   def machines_creation_url(infrastructure_id)
-    "#{configuration[:uc6_api_endpoint]}/infrastructures/#{infrastructure_id}/machines.json"
+    "#{configuration[:uc6_api_endpoint]}/infrastructures/#{infrastructure_id}/machines.#{request_format}"
   end
 
   def infrastructure_machine_url(infrastructure_id, machine_id)
@@ -87,7 +87,6 @@ module UC6UrlGenerator
     raise "No disk prid for #{disk.platform_id}, _id: #{disk.id}" if disk_prid.blank?
     raise "No remote id for disk_prid #{disk_prid.platform_key}" if disk_prid.remote_id.blank?
 
-    #machine_url(disk_machine) + "/disks/#{disk_prid.remote_id}"
     remote_id = disk.remote_id.nil? ? disk_prid.remote_id : disk.remote_id
     "#{configuration[:uc6_api_endpoint]}/disks/#{remote_id}.#{request_format}"
   end
