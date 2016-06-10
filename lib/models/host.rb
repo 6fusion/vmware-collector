@@ -1,6 +1,5 @@
 require 'rbvmomi_extensions'
 require 'matchable'
-
 class Host
   include Mongoid::Document
   include Matchable
@@ -12,6 +11,7 @@ class Host
   field :name, type: String
   # field :tags, type: Array (Not supported)
   field :cluster, type: String
+  field :cluster_platform_id, type: String
 
   field :cpu_hz, type: Integer # !!! Todo: rename cpu_speed_hz
   field :cpu_model, type: String
@@ -119,7 +119,8 @@ class Host
   end
 
   def define_cpus
-    cpus.map { |e| e[:cores] = cpu_cores }
+    total_cores = (cpus && cpus.count > 0) ? (cpu_cores.to_i/cpus.count.to_i) : 0
+    cpus.map { |e| e[:cores] = total_cores }
     cpus
   end
 end

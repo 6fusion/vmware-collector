@@ -21,7 +21,6 @@ class ReadingInventory < MongoArray
     end
   end
 end
-
 ##################################################
 # Hash like access to mongo
 class MongoHash < Hash
@@ -54,6 +53,7 @@ class MongoHash < Hash
       @klass.collection.insert(pending_inserts.map(&:as_document)) unless pending_inserts.empty?
       # Iterate over modified items and save
       (@updates - pending_inserts).each{|item|
+        Infrastructure.where(remote_id: item.remote_id).map {|i| i.update_attributes(record_status: 'updated')} if item.is_a?(Infrastructure)
         item.save
         self.store(item[@key], item) }
       # Refresh hash with inserts

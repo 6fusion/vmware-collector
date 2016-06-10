@@ -79,7 +79,6 @@ class Infrastructure
   def infrastructure_totals
     @infrastructure_totals ||= begin
       totals = Hash.new { |h, k| h[k] = 0 }
-
       hosts.each do |host|
         totals[:cpu_cores] += host.cpu_cores
         totals[:cpu_mhz]   += host.cpu_hz
@@ -146,9 +145,20 @@ class Infrastructure
     end
     self
   end
-
+  
   def submit_update
-    response = hyper_client.put(infrastructure_url(infrastructure_id: remote_id), api_format.merge(status: 'Active'))
+    logger.info "Updating infrastructure #{name} in UC6 API"
+    begin
+      response = hyper_client.put(infrastructure_url(infrastructure_id: remote_id), api_format.merge(status: 'Active'))
+      response_json = response.json
+      if (response.present? && response.code == 200 && response_json['id'].present?)
+        self.record_status = 'verified_update'
+      end
+    rescue RuntimeError => e
+      logger.error "Error updating infrastructure '#{name} in UC6"
+      raise e
+    end
+    self
   end
 
   def attribute_map
