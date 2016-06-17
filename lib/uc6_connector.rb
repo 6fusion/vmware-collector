@@ -45,6 +45,7 @@ class UC6Connector
     submit_machine_disk_and_nic_deletes # Combined to go through documents with either or both changes once
     submit_machine_deletes
     sleep(1) # Needed so that the status changed to deleted doesnt give error 422
+    submit_infrastructures_updates
     submit_machine_updates
 
       # Currently handles Disk/Nic updates too
@@ -353,7 +354,32 @@ class UC6Connector
       end
     end
   end
-
+  def submit_infrastructures_updates
+    if InventoriedTimestamp.most_recent
+      updated_infrastructures = Infrastructure.where(record_status: 'updated') # (latest_inventory.inventory_at)
+      if !updated_infrastructures.empty?
+        logger.info "Processing #{updated_infrastructures.size} infrastructures that have configuration updates for UC6"
+      else
+        logger.debug 'No infrastructures require updating in UC6'
+      end
+      updated_infrastructures.each do |updated_infrastructure|
+        begin
+          submitted_infrastructure = updated_infrastructure.submit_update
+          # Note: Successfully updated infrastructures record_status changes from "updated" to "verified_update"
+          if submitted_infrastructure.record_status == 'verified_update'
+            submitted_infrastructure.save # Save status in mongo
+          else
+            logger.error "Infrastructure #{submitted_infrastructure.name}/#{submitted_infrastructure.platform_id} not updated."
+          end
+        rescue RestClient::TooManyRequests => e
+          raise e
+        rescue StandardError => e
+          logger.debug e.backtrace.join("\n")
+          logger.error "Error updating infrastructure: #{e.message}"
+        end
+      end
+    end
+  end
   # Control function, submit disks/nics
   # Finds documents with nics or disks that need to be deleted, then calls specific delete functions
   def submit_machine_disk_and_nic_deletes
