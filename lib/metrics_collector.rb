@@ -5,7 +5,6 @@ require 'logging'
 require 'rbvmomi_extensions'
 require 'reading'
 require 'vsphere_session'
-
 class MetricsCollector
   include GlobalConfiguration
   include Logging
@@ -27,10 +26,8 @@ class MetricsCollector
     time_to_query = inventoried_time.inventory_at.to_time.utc
     collected_time = time_to_query
     @local_inventory.set_to_time(time_to_query)
-
     # If no morefs were passed in, use all inventory morefs present for the desired timestamp
-    machine_morefs = morefs_to_meter.empty? ? filtered_inventory_morefs : morefs_to_meter
-
+    machine_morefs = morefs_to_meter.blank? ? filtered_inventory_morefs : morefs_to_meter
     morefs_present_in_results = []
 
     logger.info "Collecting consumption metrics for machines inventoried at #{time_to_query}"
@@ -48,15 +45,14 @@ class MetricsCollector
         if reading.end_time
           collected_time = reading.end_time # Save this for faked readings below (in case it somehow inexplicably doesn't match time_to_query)
         end
-
         @readings << reading
       end
     end
 
     @readings.each { |r| r.end_time ||= collected_time }
-
     (machine_morefs - @readings.map(&:machine_platform_id)).each do |moref|
       machine = @local_inventory[moref]
+      next if machine.blank?
       reading = Reading.new(infrastructure_platform_id: machine.infrastructure_platform_id,
                             machine_platform_id: machine.platform_id,
                             end_time: collected_time,
@@ -80,13 +76,13 @@ class MetricsCollector
       end
       @readings << reading
     end
-
     logger.info "Adding #{@readings.size} readings to metrics collection"
 
     # We don't update the status until all metrics have been collected. This way, if
     #  saving fails, the inventory will remain queued for metering (i.e., it will get
     #  picked up again for processing automatically)
 
+    # FIXME: Apply Lock here
     inventoried_time.update_attribute(:record_status, 'metering')
     @readings.save
     inventoried_time.update_attribute(:record_status, 'metered')

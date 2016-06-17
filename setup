@@ -1,7 +1,0 @@
-#!/usr/bin/env ruby
-
-exit "Please execute setup from the repo root directory" unless File.exists?('setup')
-
-Dir.chdir('.git/hooks'){
-  File.symlink('../../.git-hooks/pre-push', 'pre-push') }
-

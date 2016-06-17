@@ -13,14 +13,3 @@ setup
 user-data*
 Vagrantfile
 
-adming_console_app/.[a-z]*
-admin_console_app/Gemfile.lock
-admin_console_app/README.rdoc
-
-adimin_console_app/db
-admin_console_app/test
-admin_console_app/tmp/*
-admin_console_app/log
-admin_console_app/.bundle
-admin_console_app/bundle
-

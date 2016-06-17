@@ -93,6 +93,12 @@ GEM
       moped (~> 2.0.0)
       origin (~> 2.1)
       tzinfo (>= 0.3.37)
+    mongoid-compatibility (0.4.0)
+      activesupport
+      mongoid (>= 2.0)
+    mongoid-locker (0.3.4)
+      mongoid (>= 2.8, < 6.0)
+      mongoid-compatibility
     moped (2.0.7)
       bson (~> 3.0)
       connection_pool (~> 2.0)
@@ -192,6 +198,7 @@ DEPENDENCIES
   google_drive
   json
   mongoid (~> 4.0)
+  mongoid-locker
   net-ssh
   nokogiri (= 1.6.6.2)
   oauth2 (~> 1.0)
@@ -207,4 +214,4 @@ DEPENDENCIES
   tzinfo-data
 
 BUNDLED WITH
-   1.12.1
+   1.12.5

@@ -1,0 +1,11 @@
+{
+  "host": "",
+  "user": "",
+  "password": "",
+  "ignore_ssl_errors": true,
+  "log_level": "debug",
+  "session_limit": 10,
+  "ignore_ssl_errors": false,
+  "readings_batch_size": 500,
+  "debug": false
+}

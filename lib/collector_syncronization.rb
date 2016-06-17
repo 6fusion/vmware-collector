@@ -89,7 +89,6 @@ class CollectorSyncronization
 
   def collect_machine_inventory
     time_to_query = Time.now.truncated
-    inventoried_timestamp = InventoriedTimestamp.find_or_create_by(inventory_at: time_to_query)
     Infrastructure.enabled.each do |infrastructure|
       logger.info "Collecting inventory for #{infrastructure.name}"
       begin
@@ -103,7 +102,6 @@ class CollectorSyncronization
     end
     machine_count = Machine.distinct(:platform_id).count
     raise 'No virtual machine inventory discovered' if machine_count == 0
-    inventoried_timestamp.delete # Leaving this behind creates "gaps" between this inventory time and when the user clicks "start metering"
     logger.info "#{machine_count} virtual machine#{'s' if machine_count > 1} discovered"
   end
 

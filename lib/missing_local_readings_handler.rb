@@ -31,6 +31,21 @@ class MissingLocalReadingsHandler
     backfill_readings
   end
 
+  def unlock_old_inventory_timestamps
+    orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}, record_status: 'queued_for_metering')
+                              .and(locked: true).lt(inventory_at: 15.minutes.ago)
+    orphaned_timestamps.each do |it|
+      begin
+        it.with_lock do
+          it.update_attributes(locked: false)
+        end
+      rescue Mongoid::Locker::LockError => e
+        logger.debug "Could not unlock #{it.inventory_at} with the inventory #{it.machine_inventory}\n"
+        next
+      end
+    end
+  end
+
   #  private
 
   # Determine if there are gaps in the collected machine inventory.
@@ -42,23 +57,19 @@ class MissingLocalReadingsHandler
   #   3)Add InventoriedTimestamp record to queue the inventory for processing by the Metrics Collector
   def backfill_inventory
     logger.info 'Checking for missing inventory'
-
     unless missing_inventory_timestamps.empty?
       local_inventory = MachineInventory.new
-
       logger.debug 'Instantiating VSphere Event Collector'
       event_collector = VSphere.wrapped_vsphere_request { VSphereEventCollector.new(start_time, end_time) }
-
+      
       missing_inventory_timestamps.each do |missing_timestamp|
         local_inventory.at_or_before(missing_timestamp)
-
         # Add creates
         event_collector.events[missing_timestamp][:created].each do |moref|
           logger.debug "Inserting empty inventory creation record for VM: #{moref} at time #{missing_timestamp}"
           local_inventory[moref] = Machine.new(platform_id: moref,
                                                status: 'created')
         end # !! what's actual vsphere status? infer powerons as well?
-
         # Update status of deletes
         event_collector.events[missing_timestamp][:deleted].each do |moref|
           logger.info "Inserting inventory deletion record for missing VM: #{moref} at time #{missing_timestamp}"
@@ -67,8 +78,7 @@ class MissingLocalReadingsHandler
 
         local_inventory.save_a_copy_with_updates(missing_timestamp)
 
-        it = InventoriedTimestamp.find_or_create_by(inventory_at: missing_timestamp)
-        it.update_attribute(:record_status, 'inventoried')
+        create_inventory_timestamps_with_inventory_for(missing_timestamp)
       end
     end
   end
@@ -80,14 +90,12 @@ class MissingLocalReadingsHandler
     # We're only interested in inventories with a status of metering; a status of 'inventoried', even for an older timestamp,
     #  will still get picked up by the normal Metrics Collector process.
     #  The intent here is to look for any InventoriedTimestamps "stuck" in the 'metering' status, which is a fairly unlikely scenario.
-
     orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}, record_status: 'queued_for_metering')
-                              .lt(inventory_at: 15.minutes.ago) # We want to make sure to not overlap with the actual metrics collector process
-
-    orphaned_timestamps.each do |it|
-      generate_machine_readings_with_missing(it.inventory_at) # Map-Reduce to build new collection
+                              .and(locked: false).lt(inventory_at: 15.minutes.ago) # We want to make sure to not overlap with the actual metrics collector process
+    orphaned_timestamps.group_by{|i| i.inventory_at}.each do |it|
+      inv_timestamps = it[1]
+      generate_machine_readings_with_missing(inv_timestamps[0].inventory_at) # Map-Reduce to build new collection
       logger.debug 'machine readings with missing map/reduce initialized'
-
       grouped_readings_by_timestamp = MachineReadingsWithMissing.collection.aggregate(
           [{'$group' => {'_id' => '$value.inventory_at',
                          data: {'$addToSet' =>
@@ -97,17 +105,47 @@ class MissingLocalReadingsHandler
       logger.debug 'machine readings with missing map/reduce aggregated'
       # Remove when _id is nil, case where timestamp had all readings
       missing_machine_morefs_by_timestamp = grouped_readings_by_timestamp.reject { |data| !data['_id'] }
-
       missing_machine_morefs_by_timestamp.each do |missing_hash|
         time = missing_hash['_id']
         data = missing_hash['data']
 
-        logger.info("Filling in missing readings for #{data.size} machines for time: #{it.inventory_at}")
+        logger.info("Filling in missing readings for #{data.size} machines for time: #{inv_timestamps[0].inventory_at}")
 
         morefs_for_missing = data.map { |pair| pair['moref'] }
-
-        metrics_collector.run(it, morefs_for_missing) unless morefs_for_missing.empty?
+        recollect_missing_readings(inv_timestamps, morefs_for_missing)
       end
+      if missing_machine_morefs_by_timestamp.blank?
+        recollect_missing_readings(inv_timestamps, [])
+      end
+    end
+  end
+
+  def recollect_missing_readings(inv_timestamps, morefs_for_missing)
+    morefs_pending = InventoriedTimestamp.or(record_status: "created").or(record_status: "inventoried").or( record_status: "metered").and(inventory_at: inv_timestamps[0].inventory_at)
+    begin
+      if morefs_pending.blank?
+        counter = 0
+        inv_timestamps.each do |dup|
+          dup.with_lock do
+            if counter == 0
+              dup.update_attributes(locked: true)
+              metrics_collector.run(dup, morefs_for_missing)
+            else
+              dup.update_attributes(locked: true, record_status: "metered")
+            end
+            counter +=1
+          end
+        end
+      else
+        inv_timestamps.each do |dup|
+          dup.with_lock do
+            dup.update_attributes(locked: true)
+            metrics_collector.run(dup, dup.machine_inventory)
+          end
+        end
+      end
+    rescue Mongoid::Locker::LockError => e
+      logger.debug "Could not get #{dup.inventory_at} with the inventory #{morefs_for_missing}\n"
     end
   end
 
@@ -143,6 +181,7 @@ class MissingLocalReadingsHandler
 
   # Under specific circumstances, it is possible for the end_time to be farther back than the start_time, which obviously is not a valid history gap
   def valid_history_range?
+    logger.debug "Start_time  => #{start_time} == End_time => #{end_time}"
     start_time < end_time
   end
 

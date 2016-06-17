@@ -14,3 +14,4 @@ test/VCenter_config/scripts/psshTestVmIPs.txt
 admin_console_app/public/assets
 oem/core
 oem/core.pub
+secrets/
