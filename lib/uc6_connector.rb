@@ -192,20 +192,24 @@ class UC6Connector
     mr = machine_reading
     infrastructure_prid = @local_platform_remote_id_inventory["i:#{mr.id[:infrastructure_platform_id]}"]
     machine_prid = @local_platform_remote_id_inventory["#{infrastructure_prid.platform_key}/m:#{mr.id[:machine_platform_id]}"]
-    if machine_prid && infrastructure_prid
-      begin
-        mr.post_to_api(infrastructure_machine_readings_url(machine_prid.remote_id))
-      rescue NoMethodError => e
-        # This is a bit of cheat, but the only way to trigger a NoMethodError is if we call .remote_id on nil, which would
-        #  indicate we have not created the corresponding disk or nic yet
-        logger.info "Delaying submission of readings for machine #{mr.id[:machine_platform_id]} " \
-                    'until corresponding UC6 machine disk and NIC resources have been created'
-        logger.debug e.message
+    if machine_exists?(mr)
+      if machine_prid && infrastructure_prid
+        begin
+          mr.post_to_api(infrastructure_machine_readings_url(machine_prid.remote_id))
+        rescue NoMethodError => e
+          # This is a bit of cheat, but the only way to trigger a NoMethodError is if we call .remote_id on nil, which would
+          #  indicate we have not created the corresponding disk or nic yet
+          logger.info "Delaying submission of readings for machine #{mr.id[:machine_platform_id]} " \
+                      'until corresponding UC6 machine disk and NIC resources have been created'
+          logger.debug e.message
+        end
+      else
+        logger.info "Delaying submission of readings for machine #{mr.id[:machine_platform_id]} "\
+                    "until corresponding UC6 infrastructure #{machine_prid ? '' : 'and machine '}resources have been created"
       end
-
     else
-      logger.info "Delaying submission of readings for machine #{mr.id[:machine_platform_id]} "\
-                  "until corresponding UC6 infrastructure #{machine_prid ? '' : 'and machine '}resources have been created"
+      mr.update_readings_status('machine_deleted')
+      logger.info "Machine with platform_id #{mr.id[:machine_platform_id]} has been deleted, so its readings are not going to be submitted to UC6"
     end
   end
 
@@ -305,7 +309,6 @@ class UC6Connector
     end
 
     machine_deletes.each do |deleted_machine|
-      logger.info "DELETED MACHINE => #{deleted_machine.inspect}"
       submit_url = machine_url(deleted_machine)
       deleted_machine.submit_delete(submit_url)
 
@@ -726,9 +729,14 @@ class UC6Connector
     end
   end
 
-  ###########
   def retrieve_api_machine(updated_machine)
     api_machine = @hyper_client.get(machine_url(updated_machine))
     api_machine.json if api_machine && api_machine.code == 200
+  end
+
+  def machine_exists?(machine_reading)
+    machine_platform_id = machine_reading.id[:machine_platform_id]
+    deleted_machines = Machine.where(record_status: 'deleted').map &:platform_id
+    !deleted_machines.include?(machine_platform_id)
   end
 end
