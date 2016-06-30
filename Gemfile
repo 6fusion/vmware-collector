@@ -18,7 +18,7 @@ gem 'ruby-dbus'
 gem 'tzinfo-data'
 
 gem 'json'
-
+gem 'mongoid-locker'
 # Locked version to prevent errors, etc
 gem 'faye-websocket', '=0.10.0'
 gem 'nokogiri', '=1.6.6.2'

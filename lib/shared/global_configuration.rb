@@ -2,7 +2,6 @@ require 'logger' # not to be confused with our logging.rb module
 require 'set'
 require 'singleton'
 require 'yaml'
-
 require 'mongo_connection'
 
 module GlobalConfiguration
@@ -180,6 +179,7 @@ module GlobalConfiguration
                      uc6_proxy_port: DEFAULT_EMPTY_VALUE,
                      uc6_proxy_user: DEFAULT_EMPTY_VALUE,
                      uc6_proxy_password: DEFAULT_EMPTY_VALUE,
+                     uc6_machines_by_inv_timestamp: '500',
                      uc6_log_level: Logger::DEBUG,
                      mongoid_log_level: Logger::INFO,
                      mongoid_hosts: 'localhost:27017',
