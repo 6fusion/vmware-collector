@@ -39,6 +39,7 @@ class MetricsCollector
                                       start_time: time_to_query,
                                       end_time: (time_to_query + 5.minutes))
       results.each do |vm, result|
+        next if @local_inventory[vm.moref].blank?
         morefs_present_in_results << vm.moref
         reading_timestamps = { start_time: time_to_query, end_time: (time_to_query + 5.minutes) }
         reading = Reading.build_from_result(result, @local_inventory[vm.moref], reading_timestamps)

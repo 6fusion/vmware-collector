@@ -173,8 +173,13 @@ class InfrastructureCollector
       if field == :cluster_platform_id && @clusters[host[:cluster_platform_id]]
         host[field]= @clusters[host[:cluster_platform_id]][:platform_id]
       elsif !@clusters[host[:cluster_platform_id]] && field == :cluster_platform_id
-        host[field] = nil
-        host[:cluster] = nil
+        if new_host.cluster.present? && new_host.cluster_platform_id.present?
+          host[field] = new_host[field]
+          host[:cluster] = new_host[:cluster]
+        else
+          host[field] = nil
+          host[:cluster] = nil
+        end
       elsif new_host[field].present?
         host[field] = new_host[field]
       end
