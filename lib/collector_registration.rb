@@ -139,7 +139,8 @@ class CollectorRegistration
   end
 
   def can_connect?(field, port)
-    Timeout.timeout(10) do
+    logger.info "Resolving IP address of #{@configuration[field]} ..."
+    Timeout.timeout(60) do
       host = @configuration[field].slice(%r{(?:https*://)?([^:]+)(?::\d+)*}i, 1)
       Resolv.new.getaddress(host)
       TCPSocket.new(host, port).close

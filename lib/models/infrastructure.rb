@@ -119,7 +119,7 @@ class Infrastructure
         self.remote_id = response.json['id']
         # TODO: see if we need this at this place
         self.enabled = 'true'
-        self.release_version = configuration[:uc6_meter_version]
+        self.release_version = configuration[:uc6_collector_version]
 
         update_attribute(:record_status, 'verified_create') # record_status will be ignored by local_inventory class, so we need to update it "manually"
       else

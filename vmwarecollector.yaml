@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: 6fusion-vmwarecollector
+  namespace: 6fusion-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vsphere-secret
+  namespace: 6fusion-system
+data:
+  host: "Z2FwdmNuMDEtZ2FwdnNwaGVyZTU1ZW52aXJvLXF5dGsxc3ZqLnNydi5yYXZjbG91ZC5jb20K"
+  user: "bWNvdG9AdnNwaGVyZS5sb2NhbAo="
+  password: "QHBhc3N3b3JkMQo="
+  ignore-ssl-errors: "dHJ1ZQo="
+  log-level: "ZGVidWcK"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: uc6-secret
+  namespace: 6fusion-system
+data:
+  api-host: "aHR0cDovLzE3Mi4xNy44LjIwMQo="
+  log-level: "ZGVidWcK"
+  oauth-endpoint: "b2F1dGgK"
+  api-endpoint: "YXBpL3YxCg=="
+  organization-id: "Nzc2MTYzLTU3ZmU1MGQ3Mjc2MjQzOTdhNTJjOGRmNzFlNTU4YjFkCg=="
+  api-scope: "YWRtaW5fb3JnYW5pemF0aW9uCg=="
+  collector-version: "YmV0YQo="
+  registration-date: "MjAxNi0wNS0xMgo="
+  machines-by-inv-timestamp: "Mgo="
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmwarecollector-master
+  namespace: 6fusion-system
+  labels:
+    6fusion-app: vmwarecollector-master
+spec:
+  ports:
+    - port: 27017
+      protocol: TCP
+      name: vmwarecollector-master-mongodb
+  selector:
+    6fusion-app: vmwarecollector-master
+  type: NodePort
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: 6fusion-vmwarecollector-master
+  namespace: 6fusion-system
+  labels:
+    6fusion-app: vmwarecollector-master
+spec:
+  containers:
+  - name: vmware-collector-inventory
+    image: 172.17.8.201:5000/vmware-collector-inventory # Docker image of the 6fusion VmWare Inventory Collector
+    volumeMounts:
+    - name: vsphere-secret
+      mountPath: /var/run/secrets/vmwarecollector/vsphere
+    - name: uc6-secret
+      mountPath: /var/run/secrets/vmwarecollector/uc6
+  - name: vmwarecollector-mongodb
+    image: mongo:3.2
+  volumes:
+  - name: vsphere-secret
+    secret:
+      secretName: vsphere-secret
+  - name: uc6-secret
+    secret:
+      secretName: uc6-secret
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: 6fusion-vmwarecollector-metrics
+  namespace: 6fusion-system
+  labels:
+    6fusion-app: vmwarecollector-metrics
+spec:
+  replicas: 1  # Set the amount of metrics collectors replicas (default 2)
+  selector:
+    6fusion-app: vmwarecollector-metrics
+  template:
+    metadata:
+      name: 6fusion-vmwarecollector-metrics
+      labels:
+        6fusion-app: vmwarecollector-metrics
+    spec:
+      containers:
+      - name: vmwarecollector-metrics
+        image: 172.17.8.201:5000/vmware-collector-metrics # Docker image of the 6fusion VmWare Metrics Collector
+        volumeMounts:
+        - name: vsphere-secret
+          mountPath: /var/run/secrets/vmwarecollector/vsphere
+        - name: uc6-secret
+          mountPath: /var/run/secrets/vmwarecollector/uc6
+      volumes:
+      - name: vsphere-secret
+        secret:
+          secretName: vsphere-secret
+      - name: uc6-secret
+        secret:
+          secretName: uc6-secret

@@ -4,7 +4,7 @@ require 'registration'
 
 namespace :load do
 
-  Mongoid.load!('config/development/mongoid.yml', ENV['METER_ENV'] || :development)
+  Mongoid.load!("config/#{ENV['METER_ENV']}/#{ENV['CONTAINER']}_mongoid_container.yml", ENV['METER_ENV'] || :development)
 
   desc "Retrieve infrastructures from UC6"
   task :infrastructures do

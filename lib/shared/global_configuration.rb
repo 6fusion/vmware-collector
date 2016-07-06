@@ -169,7 +169,7 @@ module GlobalConfiguration
                      uc6_api_threads: 2,
                      uc6_application_id: DEFAULT_EMPTY_VALUE,
                      uc6_application_secret: DEFAULT_EMPTY_VALUE,
-                     uc6_meter_version: DEFAULT_EMPTY_VALUE,
+                     uc6_collector_version: DEFAULT_EMPTY_VALUE,
                      uc6_organization_id: DEFAULT_EMPTY_VALUE,
                      uc6_organization_name: DEFAULT_EMPTY_VALUE,
                      uc6_meter_id: DEFAULT_EMPTY_VALUE,
@@ -201,8 +201,8 @@ module GlobalConfiguration
     def config_root
       pwd = Dir.pwd
       @config_root ||= begin
-        if File.readable?("#{pwd}/../config/#{@environment}/uc6.yml")
-          "#{pwd}/../config/#{@environment}"
+        if File.readable?("#{pwd}/config/#{@environment}/inventory_mongoid_container.yml")
+          "#{pwd}/config/#{@environment}"
         elsif File.readable?('config/uc6.yml')
           'config'
         elsif File.readable?('../config/uc6.yml')
@@ -212,19 +212,17 @@ module GlobalConfiguration
     end
 
     def process_config_overrides
-      ['mongoid'].each { |file| process_yaml(file) }
-      %w(uc6 vsphere).each { |file| process_secret(file) }
+      process_yaml
+      load_secrets
     end
 
-    def process_yaml(filename)
-      file = "#{config_root}/#{filename}.yml" # "/config/development/#{filename}.yml" #!!! Change to this if you are gonna run it out of container
+    def process_yaml
+      file = "#{config_root}/#{ENV['CONTAINER']}_mongoid_container.yml" # "/config/development/#{filename}.yml" #!!! Change to this if you are gonna run it out of container
       if File.readable?(file)
         @logger.debug "Loading configuration overrides from #{file}"
         begin
-          config = filename.eql?('mongoid') ?
-                     YAML.load_file(file)[@environment]['sessions']['default'] :
-                     YAML.load_file(file)[@environment]
-          config.each { |key, value| store("#{filename}_#{key}".to_sym, human_to_machine(value)) }
+          config = YAML.load(ERB.new(File.read(file)).result)[@environment]['sessions']['default']
+          config.each { |key, value| store("mongoid_#{key}".to_sym, human_to_machine(value)) }
         rescue StandardError => e
           @logger.warn "Could not parse configuration file: #{file}"
           @logger.debug e
@@ -233,19 +231,18 @@ module GlobalConfiguration
       end
     end
 
-    def process_secret(filename)
-      file = "#{ENV['SECRETS_PATH']}/#{filename}" # "secrets/#{filename}" #!!! Change to this if you are gonna run it out of container
-      if File.exist?(file)
-        @logger.debug "Loading configuration overrides from #{file}"
-        begin
-          content = File.open(file, 'rb', &:read)
-          result = JSON.parse(content)
-          result.each { |key, value| store("#{filename}_#{key}".to_sym, human_to_machine(value)) }
-        rescue StandardError => e
-          @logger.warn "Could not parse configuration file: #{file}"
-          @logger.debug e
-          @logger.debug File.read(file)
-        end
+    def load_secrets
+      vsphere_secrets = %w(vsphere-host vsphere-password vsphere-user vsphere-debug vsphere-ignore-ssl-errors)
+      uc6_secrets = %w(uc6-api-host uc6-log-level uc6-oauth-endpoint uc6-api-endpoint uc6-organization-id uc6-api-scope uc6-collector-version uc6-registration-date uc6-machines-by-inv-timestamp)
+      store_secrets_for(vsphere_secrets, "vsphere")
+      store_secrets_for(uc6_secrets, "uc6")
+    end
+
+    def store_secrets_for(keys, secret)
+      keys.each do |key|
+        file_name = key.split("#{secret}-")[1]
+        value = readfile("#{ENV['SECRETS_PATH']}/#{secret}/#{file_name}")
+        store(key.gsub("-","_").to_sym, human_to_machine(value)) if value.present?
       end
     end
 
@@ -315,6 +312,10 @@ module GlobalConfiguration
       port.blank? ?
           (fetch(:uc6_proxy_host, '').start_with?('https') ? '443' : '80') :
         port
+    end
+
+    def readfile(filepath)
+      File.exist?(filepath) ? File.read(filepath).chomp.strip : ''
     end
   end
 end
