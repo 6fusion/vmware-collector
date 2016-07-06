@@ -1,19 +1,19 @@
 #!/usr/bin/env ruby
-# Script to help reconcile large numbers of machine readings on a specific organization on UC6 API
+# Script to help reconcile large numbers of machine readings on a specific organization on OnPrem API
 # 5/7/15 Bob S.
 
 require 'rest-client'
 require 'trollop'
 require 'pry'
 require 'oauth2'
-require_relative 'uc6api'; # Note: Auth params, constants and methods are set here 
+require_relative 'on_premapi'; # Note: Auth params, constants and methods are set here
 
 opts = Trollop.options do 
     banner <<-EOS
 
-uc6api_mach_readings_cnts:  Get readings for all machines in an organizations via the UC6 API
+on_premapi_mach_readings_cnts:  Get readings for all machines in an organizations via the OnPrem API
 Usage:
-    ruby uc6api_mach_readings_cnts.rb [options]
+    ruby on_premapi_mach_readings_cnts.rb [options]
 
 (Note: API auth params are hard coded for #{Default_apiurl})
 

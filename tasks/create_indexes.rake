@@ -5,7 +5,7 @@ task :create_indexes, :environment do |t, args|
       exit
   end
 
-  yaml = YAML.load_file("config/development/mongoid.yml") #needs to be changed
+  yaml = YAML.load_file("config/#{ENV['METER_ENV']}/#{ENV['CONTAINER']}_mongoid_container.yml") #needs to be changed
 
   env_info = yaml[args[:environment]]
   unless env_info

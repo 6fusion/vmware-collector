@@ -9,30 +9,24 @@ require 'platform_remote_id'
 require 'rbvmomi_extensions'
 require 'reading'
 require 'uri_enhancements'
-require 'uc6_url_generator'
-# Initialize Data UC6 -> Local Mongo
-# logger.info 'Initializing infrastructures data'
-# load_infrastructure_data
-
-# logger.info 'Initializing machines data'
-# load_machines_data
+require 'on_prem_url_generator'
 
 Thread.abort_on_exception = true
 
-class UC6Connector
+class OnPremConnector
   include GlobalConfiguration
-  include UC6UrlGenerator
+  include OnPremUrlGenerator
   include Logging
   using RbVmomiExtensions
 
   def initialize
-    logger.info 'Initializing UC6 Connector'
+    logger.info 'Initializing OnPrem Connector'
     @hyper_client = HyperClient.new
     @local_infrastructure_inventory = InfrastructureInventory.new(:name)
     @local_platform_remote_id_inventory = PlatformRemoteIdInventory.new
     @thread_pool = Concurrent::ThreadPoolExecutor.new(min_threads: 1,
-                                                      max_threads: configuration[:uc6_api_threads], # FIXME: - 1 this
-                                                      max_queue: configuration[:uc6_api_threads] + 1,
+                                                      max_threads: configuration[:on_prem_api_threads], # FIXME: - 1 this
+                                                      max_queue: configuration[:on_prem_api_threads] + 1,
                                                       fallback_policy: :caller_runs)
   end
 
@@ -65,19 +59,19 @@ class UC6Connector
     end
   end
 
-  # Used by the registration process to update platform_remote_id with machine remote IDs (if they exist in UC6 prior to meter registration)
+  # Used by the registration process to update platform_remote_id with machine remote IDs (if they exist in OnPrem prior to meter registration)
   def initialize_platform_ids
     Infrastructure.enabled.each do |infrastructure|
       local_inventory = MachineInventory.new(infrastructure)
-      uc6_inventory = retrieve_machines(infrastructure) { |msg| yield msg if block_given? } # this is so the registration wizard can scroll names as they're retrieved, I think
+      on_prem_inventory = retrieve_machines(infrastructure) { |msg| yield msg if block_given? } # this is so the registration wizard can scroll names as they're retrieved, I think
       local_inventory.each do |platform_id, local_machine|
-        next unless uc6_inventory.key?(platform_id)
-        # !! if the machine exists in UC6, we need to get its status set to something other than 'created', so we don't create it again
+        next unless on_prem_inventory.key?(platform_id)
+        # !! if the machine exists in OnPrem, we need to get its status set to something other than 'created', so we don't create it again
         #  updated is good because if there are changes locally, we'll still push them up
-        #  However, this process needs to be batched, or more ideally, the UC6 inventory should be pulled down and
+        #  However, this process needs to be batched, or more ideally, the OnPrem inventory should be pulled down and
         #  we compare and see what needs updating.
         #        yield local_machine if block_given?
-        uc6_machine = uc6_inventory[local_machine.platform_id]
+        on_prem_machine = on_prem_inventory[local_machine.platform_id]
         yield "Syncing #{local_machine.name}" if block_given?
 
         unless @local_platform_remote_id_inventory["i:#{local_machine.infrastructure_platform_id}/m:#{local_machine.platform_id}"].present?
@@ -87,13 +81,13 @@ class UC6Connector
           @local_platform_remote_id_inventory["i:#{local_machine.infrastructure_platform_id}/m:#{local_machine.platform_id}"] =
               PlatformRemoteId.new(infrastructure: local_machine.infrastructure_platform_id,
                                    machine: local_machine.platform_id,
-                                   remote_id: uc6_machine.remote_id)
+                                   remote_id: on_prem_machine.remote_id)
         end
 
         # Need to call #to_a on Mongoid collection to use find, otherwise doesn't work correctly
-        # Need to map by name, only piece of info in UC6 that can use to map with VSphere result
+        # Need to map by name, only piece of info in OnPrem that can use to map with VSphere result
         local_machine.disks.each do |local_disk|
-          next unless (remote_disk = uc6_machine.disks.to_a.find { |md| md.name.eql?(local_disk.name) })
+          next unless (remote_disk = on_prem_machine.disks.to_a.find { |md| md.name.eql?(local_disk.name) })
           disk_key = "i:#{local_machine.infrastructure_platform_id}/" \
                      "m:#{local_machine.platform_id}/" \
                      "d:#{local_disk.platform_id}"
@@ -106,9 +100,9 @@ class UC6Connector
         end
 
         #  to call #to_a on Mongoid collection to use find, otherwise doesn't work correctly
-        # Need to map by name, only piece of info in UC6 that can use to map with VSphere result
+        # Need to map by name, only piece of info in OnPrem that can use to map with VSphere result
         local_machine.nics.each do |local_nic|
-          next unless (remote_nic = uc6_machine.nics.to_a.find { |md| md.name.eql?(local_nic.name) })
+          next unless (remote_nic = on_prem_machine.nics.to_a.find { |md| md.name.eql?(local_nic.name) })
           nic_key = "i:#{local_machine.infrastructure_platform_id}/" \
                     "m:#{local_machine.platform_id}/" \
                     "n:#{local_nic.platform_id}"
@@ -163,9 +157,9 @@ class UC6Connector
   def submit_infrastructure_creates
     infrastructure_creates = Infrastructure.where(record_status: 'created')
     if !infrastructure_creates.empty?
-      logger.info "Processing #{infrastructure_creates.size} new infrastructures for submission to UC6"
+      logger.info "Processing #{infrastructure_creates.size} new infrastructures for submission to OnPrem"
     else
-      logger.debug 'No new infrastructures to submit to UC6'
+      logger.debug 'No new infrastructures to submit to OnPrem'
     end
 
     @local_infrastructure_inventory = InfrastructureInventory.new(:name)
@@ -200,16 +194,16 @@ class UC6Connector
           # This is a bit of cheat, but the only way to trigger a NoMethodError is if we call .remote_id on nil, which would
           #  indicate we have not created the corresponding disk or nic yet
           logger.info "Delaying submission of readings for machine #{mr.id[:machine_platform_id]} " \
-                      'until corresponding UC6 machine disk and NIC resources have been created'
+                      'until corresponding OnPrem machine disk and NIC resources have been created'
           logger.debug e.message
         end
       else
         logger.info "Delaying submission of readings for machine #{mr.id[:machine_platform_id]} "\
-                    "until corresponding UC6 infrastructure #{machine_prid ? '' : 'and machine '}resources have been created"
+                    "until corresponding OnPrem infrastructure #{machine_prid ? '' : 'and machine '}resources have been created"
       end
     else
       mr.update_readings_status('machine_deleted')
-      logger.info "Machine with platform_id #{mr.id[:machine_platform_id]} has been deleted, so its readings are not going to be submitted to UC6"
+      logger.info "Machine with platform_id #{mr.id[:machine_platform_id]} has been deleted, so its readings are not going to be submitted to OnPrem"
     end
   end
 
@@ -227,9 +221,9 @@ class UC6Connector
 
   def submit_machine_creates(machine_creates = Machine.to_be_created)
     if !machine_creates.empty?
-      logger.info "Processing #{machine_creates.size} new machines for submission to UC6"
+      logger.info "Processing #{machine_creates.size} new machines for submission to OnPrem"
     else
-      logger.debug 'No new machines to submit to UC6'
+      logger.debug 'No new machines to submit to OnPrem'
     end
 
     machine_creates.each do |created_machine|
@@ -253,7 +247,7 @@ class UC6Connector
           end
         else
           logger.info "Delaying submission of machine '#{created_machine.platform_id}' "\
-                      'to UC6 API until parent infrastructure has been submitted'
+                      'to OnPrem API until parent infrastructure has been submitted'
 
         end
       rescue StandardError => e
@@ -268,7 +262,7 @@ class UC6Connector
   def handle_machine_failed_creates
     machine_failed_creates = Machine.failed_creates.to_a
     if !machine_failed_creates.empty?
-      logger.info "Processing #{machine_failed_creates.size} machines that did not successfully get created in UC6"
+      logger.info "Processing #{machine_failed_creates.size} machines that did not successfully get created in OnPrem"
     else
       logger.debug 'No machines creation failures to process'
     end
@@ -286,7 +280,7 @@ class UC6Connector
         submit_url = infrastructure_machines_url(infrastructure_id: infrastructure_prid.remote_id)
 
         if m_f_c.already_submitted?(submit_url)
-          m_f_c.update_attribute(:record_status, 'verified_create') # checks UC6 using virtual_name
+          m_f_c.update_attribute(:record_status, 'verified_create') # checks OnPrem using virtual_name
           process_verified_machine_prids(m_f_c)
         else
           # If not already_submitted?, then mark as created so gets submitted as create next time around
@@ -303,9 +297,9 @@ class UC6Connector
   def submit_machine_deletes
     machine_deletes = Machine.to_be_deleted
     if !machine_deletes.empty?
-      logger.info "Processing #{machine_deletes.size} machines that require deletion from UC6"
+      logger.info "Processing #{machine_deletes.size} machines that require deletion from OnPrem"
     else
-      logger.debug 'No machines require deletion from UC6'
+      logger.debug 'No machines require deletion from OnPrem'
     end
 
     machine_deletes.each do |deleted_machine|
@@ -324,9 +318,9 @@ class UC6Connector
     if InventoriedTimestamp.most_recent
       updated_machines = Machine.to_be_updated # (latest_inventory.inventory_at)
       if !updated_machines.empty?
-        logger.info "Processing #{updated_machines.size} machines that have configuration updates for UC6"
+        logger.info "Processing #{updated_machines.size} machines that have configuration updates for OnPrem"
       else
-        logger.debug 'No machines require updating in UC6'
+        logger.debug 'No machines require updating in OnPrem'
       end
 
       updated_machines.each do |updated_machine|
@@ -357,13 +351,14 @@ class UC6Connector
       end
     end
   end
+
   def submit_infrastructures_updates
     if InventoriedTimestamp.most_recent
       updated_infrastructures = Infrastructure.where(record_status: 'updated') # (latest_inventory.inventory_at)
       if !updated_infrastructures.empty?
-        logger.info "Processing #{updated_infrastructures.size} infrastructures that have configuration updates for UC6"
+        logger.info "Processing #{updated_infrastructures.size} infrastructures that have configuration updates for OnPrem"
       else
-        logger.debug 'No infrastructures require updating in UC6'
+        logger.debug 'No infrastructures require updating in OnPrem'
       end
       updated_infrastructures.each do |updated_infrastructure|
         begin
@@ -383,6 +378,7 @@ class UC6Connector
       end
     end
   end
+
   # Control function, submit disks/nics
   # Finds documents with nics or disks that need to be deleted, then calls specific delete functions
   def submit_machine_disk_and_nic_deletes
@@ -402,7 +398,7 @@ class UC6Connector
   end
 
   def submit_machine_disk_delete(disk)
-    logger.debug 'Processing disk that require UC6 deletion'
+    logger.debug 'Processing disk that require OnPrem deletion'
 
     submit_url = disk_url(disk)
     deleted_disk = disk.submit_delete(submit_url)
@@ -418,7 +414,7 @@ class UC6Connector
   end
 
   def submit_machine_nic_delete(nic)
-    logger.debug 'Processing nic that require UC6 deletion'
+    logger.debug 'Processing nic that require OnPrem deletion'
 
     submit_url = nic_url(nic)
     deleted_nic = nic.submit_delete(submit_url)
@@ -633,13 +629,13 @@ class UC6Connector
 
       machines_to_save << machines.map do |m|
         properties = {
-          remote_id: m['remote_id'],
-          name: m['name'],
-          virtual_name: m['custom_id'],
-          cpu_count: m['cpu_count'],
-          cpu_speed_hz: m['cpu_speed_hz'],
-          memory_bytes: m['memory_bytes'],
-          status: m['status']
+            remote_id: m['remote_id'],
+            name: m['name'],
+            virtual_name: m['custom_id'],
+            cpu_count: m['cpu_count'],
+            cpu_speed_hz: m['cpu_speed_hz'],
+            memory_bytes: m['memory_bytes'],
+            status: m['status']
         }
         Machine.new(properties)
       end

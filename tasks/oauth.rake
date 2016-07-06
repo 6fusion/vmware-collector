@@ -7,7 +7,7 @@ namespace :oauth do
     ENV['RAILS_ENV'] ||= ENV['METER_ENV']
     config = GlobalConfiguration::GlobalConfig.instance
     puts "Go run this command in the console root"
-    puts("RAILS_ENV=#{ENV['RAILS_ENV']} rake oauth:vmware_meter:add_application['#{config[:uc6_application_id]}','#{config[:uc6_application_secret]}']")
+    puts("RAILS_ENV=#{ENV['RAILS_ENV']} rake oauth:vmware_meter:add_application['#{config[:on_prem_application_id]}','#{config[:on_prem_application_secret]}']")
   end
 
 end

@@ -46,7 +46,7 @@ class MachineReading
     begin
       response = hyper_client.post(reading_endpoint, api_format)
     rescue RestClient::UnprocessableEntity, RestClient::Conflict => e
-      # 422 UnprocessableEntity is currently returned if a reading already exists, in UC6, for a given timestamp
+      # 422 UnprocessableEntity is currently returned if a reading already exists, in OnPrem, for a given timestamp
       # If we get a badrequest returned, might as well mark it submitted and move on, as there's no way it will ever stop being a bad request
       status = 'submitted_conflict'
       logger.warn "#{e.message} returned when posting to #{reading_endpoint}."

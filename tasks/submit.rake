@@ -12,47 +12,47 @@ require 'infrastructure'
 using IntervalTime
 
 namespace :submit do
-  desc "Submit all inventory to UC6Console (in order of priority)"
+  desc "Submit all inventory to OnPremConsole (in order of priority)"
   task :all do
-    UC6Connector.new.submit
+    OnPremConnector.new.submit
   end
 
-  desc "Submit inventory (machines) to UC6Console"
+  desc "Submit inventory (machines) to OnPremConsole"
   task :machines do
-    uc6_connector = UC6Connector.new
-    uc6_connector.submit_machine_creates
-    uc6_connector.submit_machine_deletes
-    uc6_connector.submit_machine_updates
+    on_prem_connector = OnPremConnector.new
+    on_prem_connector.submit_machine_creates
+    on_prem_connector.submit_machine_deletes
+    on_prem_connector.submit_machine_updates
   end
 
-  desc "Submit machine creates to UC6Console"
+  desc "Submit machine creates to OnPremConsole"
   task :machine_creates do
-    UC6Connector.new.submit_machine_creates
+    OnPremConnector.new.submit_machine_creates
   end
 
-  desc "Submit machine deletes to UC6Console"
+  desc "Submit machine deletes to OnPremConsole"
   task :machine_deletes do
-    UC6Connector.new.submit_machine_deletes
+    OnPremConnector.new.submit_machine_deletes
   end
 
-  desc "Submit machine updates to UC6Console"
+  desc "Submit machine updates to OnPremConsole"
   task :machine_updates do
-    UC6Connector.new.submit_machine_updates
+    OnPremConnector.new.submit_machine_updates
   end
 
-  desc "Submit machine failed creates to UC6Console"
+  desc "Submit machine failed creates to OnPremConsole"
   task :machine_failed_creates do
-    UC6Connector.new.handle_machine_failed_creates
+    OnPremConnector.new.handle_machine_failed_creates
   end
 
-  desc "Submit infrastructures (datacenters) to UC6Console"
+  desc "Submit infrastructures (datacenters) to OnPremConsole"
   task :infrastructures do
-    UC6Connector.new.submit_infrastructure_creates
+    OnPremConnector.new.submit_infrastructure_creates
   end
 
-  desc "Submit readings to UC6Console"
+  desc "Submit readings to OnPremConsole"
   task :metrics do
-    UC6Connector.new.submit_reading_creates
+    OnPremConnector.new.submit_reading_creates
   end
 
   desc "Initialize mongo connection"

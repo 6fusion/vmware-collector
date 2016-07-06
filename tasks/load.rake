@@ -1,19 +1,19 @@
 require 'global_configuration'
-require 'uc6_connector'
+require 'on_prem_connector'
 require 'registration'
 
 namespace :load do
 
-  Mongoid.load!('config/development/mongoid.yml', ENV['METER_ENV'] || :development)
+  Mongoid.load!("config/#{ENV['METER_ENV']}/#{ENV['CONTAINER']}_mongoid_container.yml", ENV['METER_ENV'] || :development)
 
-  desc "Retrieve infrastructures from UC6"
+  desc "Retrieve infrastructures from OnPrem"
   task :infrastructures do
-    UC6Connector.new.load_infrastructure_data
+    OnPremConnector.new.load_infrastructure_data
   end
 
-  desc "Retrieve inventory (machines) from UC6"
+  desc "Retrieve inventory (machines) from OnPrem"
   task :inventory do
-    UC6Connector.new.load_machines_data
+    OnPremConnector.new.load_machines_data
   end
 
   desc "Match machines platform IDs to inventory based on machine name"

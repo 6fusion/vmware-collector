@@ -3,13 +3,13 @@ require 'logging'
 require 'disk'
 require 'nic'
 require 'matchable'
-require 'uc6_url_generator'
+require 'on_prem_url_generator'
 class Machine
   include Mongoid::Document
   include Mongoid::Timestamps
   include Matchable
   include Logging
-  include UC6UrlGenerator
+  include OnPremUrlGenerator
   include GlobalConfiguration
 
   # Remote ID it's a UUID
@@ -18,7 +18,7 @@ class Machine
 
   field :record_status, type: String
   field :inventory_at,  type: DateTime
-  field :name,          type: String            # A bunch of bad defaults, since the UC6 API doesn't support nils
+  field :name, type: String # A bunch of bad defaults, since the OnPrem API doesn't support nils
   field :os,            type: String,   default: ""
   field :virtual_name,  type: String,   default: ""
   field :cpu_count,     type: Integer,  default: 1  # Console requires a value for count and mhz > 0
@@ -167,7 +167,7 @@ class Machine
     end
   end
 
-  # Format to submit to UC6 Console API
+  # Format to submit to OnPrem Console API
   def api_format
     machine_api_format = {
        'name': name,
@@ -191,10 +191,10 @@ class Machine
   end
 
   def submit_create
-    logger.info "Creating machine #{name} in UC6 API"
+    logger.info "Creating machine #{name} in OnPrem API"
     begin
-      # Avoid timeout issue: Successfully creates in UC6, but times out before returning 200 with remote_id
-      # Handle these failed creates the next time uc6_connector runs
+      # Avoid timeout issue: Successfully creates in OnPrem, but times out before returning 200 with remote_id
+      # Handle these failed creates the next time on_prem_connector runs
       self.update_attribute(:record_status, 'failed_create') # Gets set to 'verified_create' if successful
 
       response = hyper_client.post(machines_post_url(infrastructure_id: infrastructure_remote_id), api_format)
@@ -208,7 +208,7 @@ class Machine
         self.record_status = 'verified_create'
       end
     rescue RestClient::Conflict => e
-      logger.warn 'Machine submission generated a conflict in UC6; attempting to update local instance to match'
+      logger.warn 'Machine submission generated a conflict in OnPrem; attempting to update local instance to match'
       machines = hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure_remote_id))
       me_as_json = machines.find{|machine| machine['name'].eql?(name) }
 
@@ -219,7 +219,7 @@ class Machine
         logger.error "Could not retrieve remote_id from conflict response for machine: #{name}"
       end
     rescue StandardError => e
-      logger.error "Error creating machine '#{name}' in UC6 API"
+      logger.error "Error creating machine '#{name}' in OnPrem API"
       logger.debug e
       raise
     end
@@ -230,7 +230,7 @@ class Machine
   def already_submitted?(infrastructure_machines_endpoint)
     already_submitted = false
 
-    logger.info "Checking UC6 if #{self.platform_id} was already submitted"
+    logger.info "Checking OnPrem if #{self.platform_id} was already submitted"
     begin
       and_query_json = { custom_id: { eq: self.platform_id } }.to_json
       response = hyper_client.get(infrastructure_machines_endpoint, {"and": and_query_json})
@@ -259,21 +259,21 @@ class Machine
   end
 
   def submit_delete(machine_endpoint)
-    logger.info "Deleting machine #{name} from UC6 API"
+    logger.info "Deleting machine #{name} from OnPrem API"
     begin
       response = hyper_client.delete(machine_endpoint)
       # Possible bug fix by setting to deleted for 404
       # Somehow machine was successfully deleted, but status wasn't changed
       self.record_status = 'deleted' if (response.code == 204 || response.code == 404)
     rescue StandardError => e
-      logger.error "Error deleting machine '#{name} from UC6 API"
+      logger.error "Error deleting machine '#{name} from OnPrem API"
       logger.debug e
       raise e
     end
   end
 
   def submit_update(machine_endpoint)
-    logger.info "Updating machine #{name} in UC6 API"
+    logger.info "Updating machine #{name} in OnPrem API"
     begin
       response = hyper_client.put(machine_endpoint, api_format)
       response_json = response.json
@@ -290,7 +290,7 @@ class Machine
         self.record_status = 'verified_update'
       end
     rescue
-      logger.error "Error updating machine '#{name} in UC6"
+      logger.error "Error updating machine '#{name} in OnPrem"
       raise
     end
 

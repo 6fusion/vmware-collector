@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: 6fusion-vmwarecollector
+  namespace: 6fusion-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vsphere-secret
+  namespace: 6fusion-system
+data:
+  host: "Z2FwdmNuMDEtZ2FwdnNwaGVyZTU1ZW52aXJvLXF5dGsxc3ZqLnNydi5yYXZjbG91ZC5jb20K"
+  user: "bWNvdG9AdnNwaGVyZS5sb2NhbAo="
+  password: "QHBhc3N3b3JkMQo="
+  ignore-ssl-errors: "dHJ1ZQo="
+  log-level: "ZGVidWcK"
+  session-limit: "MTAK"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: on-prem-secret
+  namespace: 6fusion-system
+data:
+  api-host: "aHR0cDovLzE3Mi4xNy44LjIwMQo=" # Host definition for on-prem-api
+  log-level: "ZGVidWcK" # Defined level for showing elements in log (defaults to debug)
+  api-endpoint: "YXBpL3YxCg==" # Base API endpoint Defaults to /v1/api
+  organization-id: "Nzc2MTYzLWM2NzlmZDNiY2QwNzQ4YTA5MWViOWQxZWEwNjczYzJjCg==" # Organization ID on on-prem-api
+  collector-version: "YmV0YQo=" # Define Collector Version
+  registration-date: "MjAxNi0wNS0xMgo=" # You need to set this value as the timestamp of the installation date
+  machines-by-inv-timestamp: "MTAw" # Define the total of machines that are included on each request to obtain metrics from vsphere
+  inventoried-limit: "Mwo="
+  # batch_size: # Number of simultaneous requests for Vsphere
+  #### OAUTH RELATED CONFIGURATION
+  # oauth-endpoint: "b2F1dGgK" # Oauth path that will be included after api-host (defaults to oauth)
+  # oauth-token: # Oauth 2 token to authenticate the requests
+  # refresh-token: # Oauth 2 token that will be used if oauth-token expires (most of the times not required)
+  # login-email: # Email for login the user in order to generate a new oauth token (not required if "oauth-token" provided)
+  # login-password: # Password for login the user in order to generate a new oauth token (not required if "oauth-token" provided)
+  # application-id: # Oauth Application id used to request a new oauth token (not required if "oauth-token" provided)
+  # application-secret: # Oauth Application secret used to request a new oauth token (not required if "oauth-token" provided)
+  # api-scope: "YWRtaW5fb3JnYW5pemF0aW9uCg==" # Scope required for oauth authentication
+  #### Proxy related config (if required)
+  # proxy-host: b2F1d # Host required for proxy connection
+  # proxy-port: b2F1d # Port required for proxy connection
+  # proxy-user: b2F1d # User required for proxy connection
+  # proxy-password: b2F1d # Password required for proxy connection
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmwarecollector-master
+  namespace: 6fusion-system
+  labels:
+    6fusion-app: vmwarecollector-master
+spec:
+  ports:
+    - port: 27017
+      protocol: TCP
+      name: vmwarecollector-master-mongodb
+  selector:
+    6fusion-app: vmwarecollector-master
+  type: NodePort
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: 6fusion-vmwarecollector-master
+  namespace: 6fusion-system
+  labels:
+    6fusion-app: vmwarecollector-master
+spec:
+  containers:
+  - name: vmware-collector-inventory
+    image: 172.17.8.201:5000/vmware-collector-inventory # Docker image of the 6fusion VmWare Inventory Collector
+    volumeMounts:
+    - name: vsphere-secret
+      mountPath: /var/run/secrets/vmwarecollector/vsphere
+    - name: on-prem-secret
+      mountPath: /var/run/secrets/vmwarecollector/on-prem
+  - name: vmware-collector-mongodb
+    image: mongo:3.2
+  volumes:
+  - name: vsphere-secret
+    secret:
+      secretName: vsphere-secret
+  - name: on-prem-secret
+    secret:
+      secretName: on-prem-secret
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: 6fusion-vmwarecollector-metrics
+  namespace: 6fusion-system
+  labels:
+    6fusion-app: vmwarecollector-metrics
+spec:
+  replicas: 2  # Set the amount of metrics collectors replicas (default 2)
+  selector:
+    6fusion-app: vmwarecollector-metrics
+  template:
+    metadata:
+      name: 6fusion-vmwarecollector-metrics
+      labels:
+        6fusion-app: vmwarecollector-metrics
+    spec:
+      containers:
+      - name: vmware-collector-metrics
+        image: 172.17.8.201:5000/vmware-collector-metrics # Docker image of the 6fusion VmWare Metrics Collector
+        volumeMounts:
+        - name: vsphere-secret
+          mountPath: /var/run/secrets/vmwarecollector/vsphere
+        - name: on-prem-secret
+          mountPath: /var/run/secrets/vmwarecollector/on-prem
+      volumes:
+      - name: vsphere-secret
+        secret:
+          secretName: vsphere-secret
+      - name: on-prem-secret
+        secret:
+          secretName: on-prem-secret

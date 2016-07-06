@@ -1,20 +1,20 @@
-module UC6UrlGenerator
+module OnPremUrlGenerator
 
   def request_format
-    configuration[:uc6_api_format]
+    configuration[:on_prem_api_format]
   end
 
   # BASE URLS which will be used just for avoiding code duplication
   def infrastructures_base_url
-    "#{configuration[:uc6_api_endpoint]}/infrastructures"
+    "#{configuration[:on_prem_api_endpoint]}/infrastructures"
   end
 
   def organization_base_url
-    "#{configuration[:uc6_api_endpoint]}/organizations/#{configuration[:uc6_organization_id]}"
+    "#{configuration[:on_prem_api_endpoint]}/organizations/#{configuration[:on_prem_organization_id]}"
   end
 
   def machines_base_url
-    "#{configuration[:uc6_api_endpoint]}/machines"
+    "#{configuration[:on_prem_api_endpoint]}/machines"
   end
 
   # END BASE URLs methods
@@ -46,7 +46,7 @@ module UC6UrlGenerator
 
 
   def infrastructure_machines_url(infrastructure_id:)
-    "#{machines_base_url}.#{request_format}?infrastructure_id=#{infrastructure_id}&organization_id=#{configuration[:uc6_organization_id]}"
+    "#{machines_base_url}.#{request_format}?infrastructure_id=#{infrastructure_id}&organization_id=#{configuration[:on_prem_organization_id]}"
   end
 
   def infrastructure_machines_base_url(infrastructure_id)
@@ -54,11 +54,11 @@ module UC6UrlGenerator
   end
 
   def retrieve_machine(machine_remote_id)
-    "#{configuration[:uc6_api_endpoint]}/machines/#{machine_remote_id}.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/machines/#{machine_remote_id}.#{request_format}"
   end
 
   def machines_creation_url(infrastructure_id)
-    "#{configuration[:uc6_api_endpoint]}/infrastructures/#{infrastructure_id}/machines.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/infrastructures/#{infrastructure_id}/machines.#{request_format}"
   end
 
   def infrastructure_machine_url(infrastructure_id, machine_id)
@@ -66,7 +66,7 @@ module UC6UrlGenerator
   end
 
   def infrastructure_machine_readings_url(machine_id)
-    "#{configuration[:uc6_api_endpoint]}/machines/#{machine_id}/samples.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/machines/#{machine_id}/samples.#{request_format}"
   end
 
   def machine_url(machine)
@@ -88,7 +88,7 @@ module UC6UrlGenerator
     raise "No remote id for disk_prid #{disk_prid.platform_key}" if disk_prid.remote_id.blank?
 
     remote_id = disk.remote_id.nil? ? disk_prid.remote_id : disk.remote_id
-    "#{configuration[:uc6_api_endpoint]}/disks/#{remote_id}.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/disks/#{remote_id}.#{request_format}"
   end
 
   def nic_url(nic)
@@ -99,22 +99,22 @@ module UC6UrlGenerator
     raise "No nic prid for #{nic.platform_id}, _id: #{nic.id}" if nic_prid.blank?
     raise "No remote id for nic_prid #{nic_prid.platform_key}" if nic_prid.remote_id.blank?
     remote_id = nic.remote_id.nil? ? nic_prid.remote_id : nic.remote_id
-    "#{configuration[:uc6_api_endpoint]}/nics/#{remote_id}.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/nics/#{remote_id}.#{request_format}"
   end
 
   def machine_nics_url(machine_remote_id)
-    "#{configuration[:uc6_api_endpoint]}/machines/#{machine_remote_id}/nics.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/machines/#{machine_remote_id}/nics.#{request_format}"
   end
 
   def machine_disks_url(machine_remote_id)
-    "#{configuration[:uc6_api_endpoint]}/machines/#{machine_remote_id}/disks.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/machines/#{machine_remote_id}/disks.#{request_format}"
   end
 
   def nic_url_for(nic_id)
-     "#{configuration[:uc6_api_endpoint]}/nics/#{nic_id}.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/nics/#{nic_id}.#{request_format}"
   end
 
   def disk_url_for(disk_id)
-    "#{configuration[:uc6_api_endpoint]}/disks/#{disk_id}.#{request_format}"
+    "#{configuration[:on_prem_api_endpoint]}/disks/#{disk_id}.#{request_format}"
   end
 end

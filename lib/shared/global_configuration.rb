@@ -56,8 +56,8 @@ module GlobalConfiguration
       # Comment the following line if you are going to run it on container
       # initialize_mongo_connection({:mongoid_database=>"6fusion_meter_development", :mongoid_hosts=>["localhost:27017"], :mongoid_options=>{:pool_size=>20}, :mongoid_log_level=>1})
 
-      @logger.level = fetch(:uc6_log_level)
-      Logging::MeterLog.instance.logger.level = fetch(:uc6_log_level)
+      @logger.level = fetch(:on_prem_log_level)
+      Logging::MeterLog.instance.logger.level = fetch(:on_prem_log_level)
     end
 
     def vsphere_configured?
@@ -112,7 +112,7 @@ module GlobalConfiguration
     def aliases
       @aliases ||= {
           mongo_port: :mongoid_hosts,
-          log_level: :uc6_log_level
+          log_level: :on_prem_log_level
       }
     end
 
@@ -130,13 +130,13 @@ module GlobalConfiguration
 
     def fetch_hooks
       @fetch_hooks ||= {
-        mongoid_database:   method(:database_name),
-        uc6_proxy:          method(:build_proxy_string),
-        uc6_proxy_port:     method(:proxy_port_unless_provided),
-        uc6_api_endpoint:   method(:prepend_uc6_api_host),
-        uc6_oauth_endpoint: method(:prepend_uc6_api_host),
-        uc6_infrastructure_id: method(:get_an_infrastructure_id),
-        mongoid_log_level:  method(:infer_mongoid_log_level)
+          mongoid_database: method(:database_name),
+          on_prem_proxy: method(:build_proxy_string),
+          on_prem_proxy_port: method(:proxy_port_unless_provided),
+          on_prem_api_endpoint: method(:prepend_on_prem_api_host),
+          on_prem_oauth_endpoint: method(:prepend_on_prem_api_host),
+          on_prem_infrastructure_id: method(:get_an_infrastructure_id),
+          mongoid_log_level: method(:infer_mongoid_log_level)
       }
     end
 
@@ -148,6 +148,9 @@ module GlobalConfiguration
       fetch_hooks.key?(key) ? fetch_hooks[key].call(value) : value
     end
 
+    # ALL defauls values can be changed on the secrets file. All elements that begin with:
+    # "on_prem" should be included in on_prem kubernetes secret
+    # "vsphere" should be included in vsphere kubernetes secret
     def defaults
       @defaults ||= {config_root: 'config',
                      data_center: DEFAULT_EMPTY_VALUE,
@@ -158,32 +161,33 @@ module GlobalConfiguration
                      vsphere_readings_batch_size: 500,
                      vsphere_ignore_ssl_errors: false,
                      vsphere_debug: false,
-                     uc6_api_format: 'json',
-                     uc6_api_host: DEFAULT_EMPTY_VALUE,
-                     uc6_login_email: DEFAULT_EMPTY_VALUE,
-                     uc6_login_password: DEFAULT_EMPTY_VALUE,
-                     uc6_batch_size: 500,
-                     uc6_api_endpoint: DEFAULT_EMPTY_VALUE,
-                     uc6_oauth_endpoint: DEFAULT_EMPTY_VALUE,
-                     uc6_api_scope: DEFAULT_EMPTY_VALUE,
-                     uc6_api_threads: 2,
-                     uc6_application_id: DEFAULT_EMPTY_VALUE,
-                     uc6_application_secret: DEFAULT_EMPTY_VALUE,
-                     uc6_meter_version: DEFAULT_EMPTY_VALUE,
-                     uc6_organization_id: DEFAULT_EMPTY_VALUE,
-                     uc6_organization_name: DEFAULT_EMPTY_VALUE,
-                     uc6_meter_id: DEFAULT_EMPTY_VALUE,
-                     uc6_oauth_token: DEFAULT_EMPTY_VALUE,
-                     uc6_refresh_token: DEFAULT_EMPTY_VALUE,
-                     uc6_proxy_host: DEFAULT_EMPTY_VALUE,
-                     uc6_proxy_port: DEFAULT_EMPTY_VALUE,
-                     uc6_proxy_user: DEFAULT_EMPTY_VALUE,
-                     uc6_proxy_password: DEFAULT_EMPTY_VALUE,
-                     uc6_machines_by_inv_timestamp: '500',
-                     uc6_log_level: Logger::DEBUG,
+                     on_prem_api_format: 'json',
+                     on_prem_api_host: DEFAULT_EMPTY_VALUE,
+                     on_prem_login_email: DEFAULT_EMPTY_VALUE,
+                     on_prem_login_password: DEFAULT_EMPTY_VALUE,
+                     on_prem_batch_size: 500,
+                     on_prem_api_endpoint: DEFAULT_EMPTY_VALUE,
+                     on_prem_oauth_endpoint: DEFAULT_EMPTY_VALUE,
+                     on_prem_api_scope: DEFAULT_EMPTY_VALUE,
+                     on_prem_api_threads: 2,
+                     on_prem_application_id: DEFAULT_EMPTY_VALUE,
+                     on_prem_application_secret: DEFAULT_EMPTY_VALUE,
+                     on_prem_collector_version: DEFAULT_EMPTY_VALUE,
+                     on_prem_organization_id: DEFAULT_EMPTY_VALUE,
+                     on_prem_organization_name: DEFAULT_EMPTY_VALUE,
+                     on_prem_meter_id: DEFAULT_EMPTY_VALUE,
+                     on_prem_oauth_token: DEFAULT_EMPTY_VALUE,
+                     on_prem_refresh_token: DEFAULT_EMPTY_VALUE,
+                     on_prem_proxy_host: DEFAULT_EMPTY_VALUE,
+                     on_prem_proxy_port: DEFAULT_EMPTY_VALUE,
+                     on_prem_proxy_user: DEFAULT_EMPTY_VALUE,
+                     on_prem_proxy_password: DEFAULT_EMPTY_VALUE,
+                     on_prem_machines_by_inv_timestamp: '500',
+                     on_prem_inventoried_limit: 10,
+                     on_prem_log_level: Logger::DEBUG,
                      mongoid_log_level: Logger::INFO,
                      mongoid_hosts: 'localhost:27017',
-                     mongoid_database: '6fusion_meter',
+                     mongoid_database: '6fusion_collector',
                      mongoid_port: DEFAULT_EMPTY_VALUE,
                      verified_api_connection: false,
                      verified_vsphere_connection: true,
@@ -201,30 +205,28 @@ module GlobalConfiguration
     def config_root
       pwd = Dir.pwd
       @config_root ||= begin
-        if File.readable?("#{pwd}/../config/#{@environment}/uc6.yml")
-          "#{pwd}/../config/#{@environment}"
-        elsif File.readable?('config/uc6.yml')
+        if File.readable?("#{pwd}/config/#{@environment}/inventory_mongoid_container.yml")
+          "#{pwd}/config/#{@environment}"
+        elsif File.readable?("config/#{@environment}/inventory_mongoid_container.yml")
+          "config/#{@environment}"
+        else
           'config'
-        elsif File.readable?('../config/uc6.yml')
-          '../config'
         end
-                       end
+      end
     end
 
     def process_config_overrides
-      ['mongoid'].each { |file| process_yaml(file) }
-      %w(uc6 vsphere).each { |file| process_secret(file) }
+      process_yaml
+      load_secrets
     end
 
-    def process_yaml(filename)
-      file = "#{config_root}/#{filename}.yml" # "/config/development/#{filename}.yml" #!!! Change to this if you are gonna run it out of container
+    def process_yaml
+      file = "#{config_root}/#{ENV['CONTAINER']}_mongoid_container.yml" # "/config/development/#{filename}.yml" #!!! Change to this if you are gonna run it out of container
       if File.readable?(file)
         @logger.debug "Loading configuration overrides from #{file}"
         begin
-          config = filename.eql?('mongoid') ?
-                     YAML.load_file(file)[@environment]['sessions']['default'] :
-                     YAML.load_file(file)[@environment]
-          config.each { |key, value| store("#{filename}_#{key}".to_sym, human_to_machine(value)) }
+          config = YAML.load(ERB.new(File.read(file)).result)[@environment]['sessions']['default']
+          config.each { |key, value| store("mongoid_#{key}".to_sym, human_to_machine(value)) }
         rescue StandardError => e
           @logger.warn "Could not parse configuration file: #{file}"
           @logger.debug e
@@ -233,19 +235,21 @@ module GlobalConfiguration
       end
     end
 
-    def process_secret(filename)
-      file = "#{ENV['SECRETS_PATH']}/#{filename}" # "secrets/#{filename}" #!!! Change to this if you are gonna run it out of container
-      if File.exist?(file)
-        @logger.debug "Loading configuration overrides from #{file}"
-        begin
-          content = File.open(file, 'rb', &:read)
-          result = JSON.parse(content)
-          result.each { |key, value| store("#{filename}_#{key}".to_sym, human_to_machine(value)) }
-        rescue StandardError => e
-          @logger.warn "Could not parse configuration file: #{file}"
-          @logger.debug e
-          @logger.debug File.read(file)
-        end
+    def load_secrets
+      vsphere_secrets = %w(host password user debug ignore-ssl-errors)
+      on_prem_secrets = %w(api-host log-level oauth-endpoint api-endpoint organization-id api-scope collector-version \
+                           registration-date machines-by-inv-timestamp inventoried-limit proxy_host proxy_port proxy_user \
+                           proxy_password oauth_token refresh_token login_email login_password batch_size application_id \
+                           application_secret organization_name)
+
+      store_secrets_for(vsphere_secrets, "vsphere")
+      store_secrets_for(on_prem_secrets, "on-prem")
+    end
+
+    def store_secrets_for(keys, secret)
+      keys.each do |name_in_file|
+        value = readfile("#{ENV['SECRETS_PATH']}/#{secret}/#{name_in_file}")
+        store("#{secret}_#{name_in_file}".gsub("-", "_").to_sym, human_to_machine(value)) if value.present?
       end
     end
 
@@ -271,22 +275,22 @@ module GlobalConfiguration
       end
     end
 
-    def prepend_uc6_api_host(url)
+    def prepend_on_prem_api_host(url)
       url.start_with?('http') ?
-        url :
-        "#{fetch(:uc6_api_host)}/#{url}"
+          url :
+          "#{fetch(:on_prem_api_host)}/#{url}"
     end
 
     def build_proxy_string(proxy_host)
       return nil if proxy_host.nil? || proxy_host.blank?
       host_uri = URI.parse(proxy_host)
       proxy_string = host_uri.scheme + '://'
-      if key?(:uc6_proxy_user)
-        proxy_string += fetch(:uc6_proxy_user)
-        proxy_string += key?(:uc6_proxy_password) ? ":#{fetch(:uc6_proxy_password)}@" : '@'
+      if key?(:on_prem_proxy_user)
+        proxy_string += fetch(:on_prem_proxy_user)
+        proxy_string += key?(:on_prem_proxy_password) ? ":#{fetch(:on_prem_proxy_password)}@" : '@'
       end
       proxy_string += host_uri.host
-      proxy_string += ":#{fetch(:u6_proxy_port)}" if key?(:uc6_proxy_port)
+      proxy_string += ":#{fetch(:u6_proxy_port)}" if key?(:on_prem_proxy_port)
       proxy_string
     end
 
@@ -307,14 +311,18 @@ module GlobalConfiguration
       # Mongoid should only be bumped up to debug if it's been explicitly set. I.e., don't assume that because the
       #  meter is at debug, mongoid should be as well (it's really noisy)
       fetch(:mongoid_log_level,
-            fetch(:uc6_log_level, Logger::INFO) <= Logger::INFO ? Logger::INFO : fetch(:uc6_log_level))
+            fetch(:on_prem_log_level, Logger::INFO) <= Logger::INFO ? Logger::INFO : fetch(:on_prem_log_level))
     end
 
     def proxy_port_unless_provided(*)
-      port = fetch(:uc6_proxy_port, '')
+      port = fetch(:on_prem_proxy_port, '')
       port.blank? ?
-          (fetch(:uc6_proxy_host, '').start_with?('https') ? '443' : '80') :
-        port
+          (fetch(:on_prem_proxy_host, '').start_with?('https') ? '443' : '80') :
+          port
+    end
+
+    def readfile(filepath)
+      File.exist?(filepath) ? File.read(filepath).chomp.strip : ''
     end
   end
 end

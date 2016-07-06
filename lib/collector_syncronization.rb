@@ -7,14 +7,14 @@ require 'vsphere_session'
 require 'metrics_collector'
 require 'infrastructure_collector'
 require 'inventory_collector'
-require 'uc6_connector'
-require 'uc6_url_generator'
+require 'on_prem_connector'
+require 'on_prem_url_generator'
 require 'interval_time'
 
 class CollectorSyncronization
   using IntervalTime
   include GlobalConfiguration
-  include UC6UrlGenerator
+  include OnPremUrlGenerator
   include Logging
   include VSphere
 
@@ -41,7 +41,7 @@ class CollectorSyncronization
 
   def start_sync
     logger.info 'Syncing items'
-    @uc6_connector = UC6Connector.new
+    @on_prem_connector = OnPremConnector.new
     collect_infrastructures
     submit_infrastructures
     collect_machine_inventory
@@ -69,16 +69,16 @@ class CollectorSyncronization
 
   def submit_infrastructures
     logger.info 'Submitting infrastructures'
-    @uc6_connector.submit_infrastructure_creates
+    @on_prem_connector.submit_infrastructure_creates
     # We rely on the passwords having been added to the global config, *unencrypted*, in the previous registration steps
     #  So we save them before moving into the code to set up encryption
-    proxy   = @configuration[:uc6_proxy_password]
+    proxy = @configuration[:on_prem_proxy_password]
     vsphere = @configuration[:vsphere_password]
     hyper_client = HyperClient.new
     response = hyper_client.get(infrastructures_url)
 
     if response.code == 200
-      @configuration[:uc6_proxy_password] = proxy
+      @configuration[:on_prem_proxy_password] = proxy
       @configuration[:vsphere_password] = vsphere
     else
       logger.error "Something other than a 200 returned at #{__LINE__}: #{response.code}"
@@ -107,7 +107,7 @@ class CollectorSyncronization
 
   def sync_remote_ids
     logger.info 'Syncing remote ids'
-    @uc6_connector.initialize_platform_ids { |msg| logger.info msg }
-    logger.info 'Local inventory synced with UC6'
+    @on_prem_connector.initialize_platform_ids { |msg| logger.info msg }
+    logger.info 'Local inventory synced with OnPrem'
   end
 end

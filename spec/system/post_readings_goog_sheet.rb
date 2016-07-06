@@ -1,4 +1,4 @@
-# Post UC6 machine readings from data in a google spread sheet
+# Post OnPrem machine readings from data in a google spread sheet
 
 require 'roo'
 require 'pry'

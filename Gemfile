@@ -3,7 +3,6 @@ source 'https://rubygems.org'
 # meter requirements
 gem 'activesupport',   '~>4.0'
 gem 'concurrent-ruby-ext', require: 'concurrent'
-gem 'gibberish'
 gem 'mongoid',         '~>4.0'
 gem 'oauth2',          '~>1.0'
 gem 'rbvmomi',         '~>1.8'
@@ -12,15 +11,10 @@ gem 'rufus-scheduler', '~>3.0'
 gem 'rake'
 
 # admin console requirements
-gem 'docker-api', require: 'docker'
-gem 'foreman'
-gem 'ruby-dbus'
 gem 'tzinfo-data'
 
 gem 'json'
-gem 'mongoid-locker'
 # Locked version to prevent errors, etc
-gem 'faye-websocket', '=0.10.0'
 gem 'nokogiri', '=1.6.6.2'
 
 group :test do

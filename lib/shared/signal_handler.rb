@@ -14,7 +14,7 @@ module SignalHandler
       configuration = GlobalConfiguration::GlobalConfig.instance
       Logging.logger.info 'HUP receieved; refreshing configuration'
       configuration.refresh
-      Logging.logger.level = configuration[:uc6_log_level]
+      Logging.logger.level = configuration[:on_prem_log_level]
       VSphere.refresh
       $hupped = false
       true
