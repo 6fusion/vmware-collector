@@ -26,7 +26,7 @@ data:
   log-level: "ZGVidWcK"
   oauth-endpoint: "b2F1dGgK"
   api-endpoint: "YXBpL3YxCg=="
-  organization-id: "Nzc2MTYzLTU3ZmU1MGQ3Mjc2MjQzOTdhNTJjOGRmNzFlNTU4YjFkCg=="
+  organization-id: "Nzc2MTYzLTA0ODFlMThmMDA0NzQzZGE4OTFhYTlmN2M2NGRmNDQ4Cg=="
   api-scope: "YWRtaW5fb3JnYW5pemF0aW9uCg=="
   collector-version: "YmV0YQo="
   registration-date: "MjAxNi0wNS0xMgo="
@@ -64,7 +64,7 @@ spec:
       mountPath: /var/run/secrets/vmwarecollector/vsphere
     - name: uc6-secret
       mountPath: /var/run/secrets/vmwarecollector/uc6
-  - name: vmwarecollector-mongodb
+  - name: vmware-collector-mongodb
     image: mongo:3.2
   volumes:
   - name: vsphere-secret
@@ -82,7 +82,7 @@ metadata:
   labels:
     6fusion-app: vmwarecollector-metrics
 spec:
-  replicas: 1  # Set the amount of metrics collectors replicas (default 2)
+  replicas: 2  # Set the amount of metrics collectors replicas (default 2)
   selector:
     6fusion-app: vmwarecollector-metrics
   template:
@@ -92,7 +92,7 @@ spec:
         6fusion-app: vmwarecollector-metrics
     spec:
       containers:
-      - name: vmwarecollector-metrics
+      - name: vmware-collector-metrics
         image: 172.17.8.201:5000/vmware-collector-metrics # Docker image of the 6fusion VmWare Metrics Collector
         volumeMounts:
         - name: vsphere-secret
