@@ -14,7 +14,6 @@ gem 'rake'
 gem 'tzinfo-data'
 
 gem 'json'
-gem 'mongoid-locker'
 # Locked version to prevent errors, etc
 gem 'nokogiri', '=1.6.6.2'
 

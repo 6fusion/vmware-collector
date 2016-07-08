@@ -35,14 +35,7 @@ class MissingLocalReadingsHandler
     orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}, record_status: 'queued_for_metering')
                               .and(locked: true).lt(inventory_at: 15.minutes.ago)
     orphaned_timestamps.each do |it|
-      begin
-        it.with_lock do
-          it.update_attributes(locked: false)
-        end
-      rescue Mongoid::Locker::LockError => e
-        logger.debug "Could not unlock #{it.inventory_at} with the inventory #{it.machine_inventory}\n"
-        next
-      end
+      it.update_attributes(locked: false, locked_by: nil)
     end
   end
 
@@ -119,33 +112,44 @@ class MissingLocalReadingsHandler
       end
     end
   end
-
+  #pending to modify
   def recollect_missing_readings(inv_timestamps, morefs_for_missing)
     morefs_pending = InventoriedTimestamp.or(record_status: "created").or(record_status: "inventoried").or( record_status: "metered").and(inventory_at: inv_timestamps[0].inventory_at)
-    begin
-      if morefs_pending.blank?
-        counter = 0
-        inv_timestamps.each do |dup|
-          dup.with_lock do
-            if counter == 0
-              dup.update_attributes(locked: true)
-              metrics_collector.run(dup, morefs_for_missing)
-            else
-              dup.update_attributes(locked: true, record_status: "metered")
-            end
-            counter +=1
+    if morefs_pending.blank?
+      counter = 0
+      inv_timestamps.each do |dup|
+        if counter == 0
+          if inventoried_timestamp_unlocked? dup
+            dup.locked = true
+            dup.locked_by = @container_name
+            dup.record_status = 'queued_for_metering'
+            dup.save!
+          end
+          next if not inventoried_timestamp_free_to_meter? dup
+          logger.debug "Running ID => #{dup._id} ==#{dup.inventory_at} with inventory #{dup.machine_inventory}"
+          metrics_collector.run(dup, morefs_for_missing)
+        else
+          if inventoried_timestamp_unlocked? dup
+            dup.locked = true
+            dup.locked_by = @container_name
+            dup.record_status = 'metered'
+            dup.save!
           end
         end
-      else
-        inv_timestamps.each do |dup|
-          dup.with_lock do
-            dup.update_attributes(locked: true)
-            metrics_collector.run(dup, dup.machine_inventory)
-          end
-        end
+        counter +=1
       end
-    rescue Mongoid::Locker::LockError => e
-      logger.debug "Could not get #{dup.inventory_at} with the inventory #{morefs_for_missing}\n"
+    else
+      inv_timestamps.each do |dup|
+        if inventoried_timestamp_unlocked? dup
+          dup.locked = true
+          dup.locked_by = @container_name
+          dup.record_status = 'queued_for_metering'
+          dup.save!
+        end
+        next if not inventoried_timestamp_free_to_meter? dup
+        logger.debug "Running ID => #{dup._id} ==#{dup.inventory_at} with inventory #{dup.machine_inventory}"
+        metrics_collector.run(dup, dup.machine_inventory)
+      end
     end
   end
 
