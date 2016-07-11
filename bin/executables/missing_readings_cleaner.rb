@@ -10,7 +10,7 @@ module Executables
 
       begin
         start_time = Time.now
-        #@missing_readings_handler.unlock_old_inventory_timestamps #pending
+        @missing_readings_handler.unlock_old_inventory_timestamps
       rescue StandardError => e
         logger.fatal "Encountered unhandled exception: #{e.message}."
         logger.debug e.backtrace

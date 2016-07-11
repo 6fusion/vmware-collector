@@ -44,7 +44,6 @@ module Executables
     def main_thread
       # Iterate over timestamps (from oldest to newest).
       inventoried_timestamps = InventoriedTimestamp.unlocked_timestamps_for_day('inventoried')
-      #Used this approach to ensure that we are using information realtime
       inventoried_timestamps.each do |it|
         if inventoried_timestamp_unlocked?(it)
           it.locked = true
@@ -56,7 +55,6 @@ module Executables
       inventoried_timestamps_to_be_metered(@container_name).each do |it|
         next if not inventoried_timestamp_free_to_meter? it
         begin
-          # collection shouldn't take longer than 5 minutes
           time = it.inventory_at < INVENTORY_WIGGLE_TIME.minutes.ago ? FITHTEEN_MINUTES_IN_SECONDS : FIVE_MINUTES_IN_SECONDS
           Timeout.timeout(time) do
             logger.debug "Running ID => #{it._id} ==#{it.inventory_at} with inventory #{it.machine_inventory}"
