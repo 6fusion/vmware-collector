@@ -4,13 +4,13 @@ require 'global_configuration'
 require 'json'
 require 'logging'
 require 'rest_client_extensions'
-require 'uc6_url_generator'
+require 'on_prem_url_generator'
 require 'vsphere_session'
 require 'metrics_collector'
 
 class CollectorRegistration
   include GlobalConfiguration
-  include UC6UrlGenerator
+  include OnPremUrlGenerator
   include Logging
   include VSphere
 
@@ -21,11 +21,11 @@ class CollectorRegistration
     @configuration = GlobalConfiguration::GlobalConfig.instance
   end
 
-  def configure_uc6
+  def configure_on_prem
     if credentials_present?
       verify_connection_from_credentials
     else # no credentials
-      if @configuration.present_value?(:uc6_api_host)
+      if @configuration.present_value?(:on_prem_api_host)
         verify_connection_retrieving_missing_info
       else
         logger.error 'There is missing information on the configuration file'
@@ -68,15 +68,15 @@ class CollectorRegistration
   private
 
   def credentials_present?
-    @configuration.present_value?(:uc6_application_id) && @configuration.present_value?(:uc6_application_secret) &&
-        @configuration.present_value?(:uc6_login_email) && @configuration.present_value?(:uc6_login_password)
+    @configuration.present_value?(:on_prem_application_id) && @configuration.present_value?(:on_prem_application_secret) &&
+        @configuration.present_value?(:on_prem_login_email) && @configuration.present_value?(:on_prem_login_password)
   end
 
   def verify_connection_from_credentials
-    if uc6_api_configured? && oauth_succesful?
+    if on_prem_api_configured? && oauth_succesful?
       retrieve_organization_name
       @configuration[:verified_api_connection] = true
-      logger.info 'Succesful connected with uc6 api'
+      logger.info 'Succesful connected with on_prem api'
     else
       exit(1)
     end
@@ -84,18 +84,18 @@ class CollectorRegistration
 
   def verify_connection_retrieving_missing_info
     retrieve_organization_name
-    if @configuration.present_value?(:uc6_organization_name)
+    if @configuration.present_value?(:on_prem_organization_name)
       @configuration[:verified_api_connection] = true
-      logger.info 'Succesful connected with uc6 api'
+      logger.info 'Succesful connected with on_prem api'
     end
   end
 
-  def uc6_api_configured?
-    @configuration.present_value?(:uc6_api_host) && valid_user?
+  def on_prem_api_configured?
+    @configuration.present_value?(:on_prem_api_host) && valid_user?
   end
 
   def valid_user?
-    if @configuration.blank_value?(:uc6_refresh_token)
+    if @configuration.blank_value?(:on_prem_refresh_token)
       validate_email && validate_password
     else
       true
@@ -103,12 +103,12 @@ class CollectorRegistration
   end
 
   def validate_email
-    @configuration.present_value?(:uc6_login_email) &&
-        !!(@configuration[:uc6_login_email] =~ EMAIL_REGEX)
+    @configuration.present_value?(:on_prem_login_email) &&
+        !!(@configuration[:on_prem_login_email] =~ EMAIL_REGEX)
   end
 
   def validate_password
-    @configuration.present_value?(:uc6_login_password)
+    @configuration.present_value?(:on_prem_login_password)
   end
 
   def oauth_succesful?
@@ -116,20 +116,20 @@ class CollectorRegistration
     begin
       # On first registration, these will already be blank. But if a user wanted to change a pasword,
       #  we need to force a token request, so we make sure these are blanked out
-      GlobalConfiguration::GlobalConfig.instance.delete(:uc6_oauth_token)
+      GlobalConfiguration::GlobalConfig.instance.delete(:on_prem_oauth_token)
       hyper_client.reset_token
       # trigger retrieval of new token
       if hyper_client.oauth_token.blank?
-        puts 'access token could not be retrieved. Please verify UC6 API options.'
+        puts 'access token could not be retrieved. Please verify OnPrem API options.'
         return false
       else
         return true
       end
     rescue StandardError => e
-      if can_connect?(:uc6_api_host, URI.parse(@configuration[:uc6_api_host]).port)
+      if can_connect?(:on_prem_api_host, URI.parse(@configuration[:on_prem_api_host]).port)
         if e.is_a?(OAuth2::Error)
           # The OAuth2 error messages are useless, so we don't bother showing it to the user
-          logger.error 'Authentication token could not be retrieved. Please verify the UC6 API credentials.'
+          logger.error 'Authentication token could not be retrieved. Please verify the OnPrem API credentials.'
         else
           logger.error "Authentication token could not be retrieved: #{e.message}"
         end
@@ -162,19 +162,19 @@ class CollectorRegistration
 
   def retrieve_organization_name
     hyper_client = HyperClient.new
-    if @configuration.present_value?(:uc6_organization_id)
+    if @configuration.present_value?(:on_prem_organization_id)
       response = hyper_client.get(organization_url)
       if response.present?
         result = response.json
         begin
           if response.code == 200
-            @configuration[:uc6_organization_name] = result['name'] if result['name']
+            @configuration[:on_prem_organization_name] = result['name'] if result['name']
           end
         rescue
           logger.error "Organization name could not be retrieved from #{response.json}"
         end
       else
-        logger.error 'UC6 API could not be reached. Please verify UC6 API options and that the UC6 API is up.'
+        logger.error 'OnPrem API could not be reached. Please verify OnPrem API options and that the OnPrem API is up.'
         exit(1)
       end
     end

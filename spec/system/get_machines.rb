@@ -1,4 +1,4 @@
-# Retrieves machine readings from UC6 API
+# Retrieves machine readings from OnPrem API
 
 require 'rest-client'
 require 'awesome_print'

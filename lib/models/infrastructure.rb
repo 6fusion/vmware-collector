@@ -4,7 +4,7 @@ require 'infrastructure_collector'
 require 'logging'
 require 'matchable'
 require 'network'
-require 'uc6_url_generator'
+require 'on_prem_url_generator'
 
 class Infrastructure
   include Mongoid::Document
@@ -12,7 +12,7 @@ class Infrastructure
   include Logging
   include Matchable
   include GlobalConfiguration
-  include UC6UrlGenerator
+  include OnPremUrlGenerator
 
   field :platform_id, type: String
   field :remote_id, type: String
@@ -112,23 +112,23 @@ class Infrastructure
   def submit_create
     response = nil
     begin
-      logger.info "Submitting #{name} to API for creation in UC6"
+      logger.info "Submitting #{name} to API for creation in OnPrem"
       self.tags = name if tags.blank?
       response = hyper_client.post(infrastructures_post_url, api_format)
       if response && response.code == 200
         self.remote_id = response.json['id']
         # TODO: see if we need this at this place
         self.enabled = 'true'
-        self.release_version = configuration[:uc6_collector_version]
+        self.release_version = configuration[:on_prem_collector_version]
 
         update_attribute(:record_status, 'verified_create') # record_status will be ignored by local_inventory class, so we need to update it "manually"
       else
-        logger.error "Unable to create infrastructure in UC6 for #{name}"
+        logger.error "Unable to create infrastructure in OnPrem for #{name}"
         logger.debug "API reponse: #{response}"
       end
 
     rescue RestClient::Conflict => e
-      logger.warn 'Infrastructure already exists in UC6; attempting to update local instance to match'
+      logger.warn 'Infrastructure already exists in OnPrem; attempting to update local instance to match'
       infrastructures = hyper_client.get_all_resources(infrastructures_url)
       me_as_json = infrastructures.find { |inf| inf['name'].eql?(name) }
 
@@ -139,7 +139,7 @@ class Infrastructure
         logger.error "Could not retrieve remote_id from conflict response for infrastructure: #{infrastructure.name}"
       end
     rescue StandardError => e
-      logger.error "Error creating infrastructure in UC6 for #{name}"
+      logger.error "Error creating infrastructure in OnPrem for #{name}"
       logger.debug e
       raise
     end
@@ -147,7 +147,7 @@ class Infrastructure
   end
   
   def submit_update
-    logger.info "Updating infrastructure #{name} in UC6 API"
+    logger.info "Updating infrastructure #{name} in OnPrem API"
     begin
       response = hyper_client.put(infrastructure_url(infrastructure_id: remote_id), api_format.merge(status: 'Active'))
       response_json = response.json
@@ -155,7 +155,7 @@ class Infrastructure
         self.record_status = 'verified_update'
       end
     rescue RuntimeError => e
-      logger.error "Error updating infrastructure '#{name} in UC6"
+      logger.error "Error updating infrastructure '#{name} in OnPrem"
       raise e
     end
     self
@@ -179,7 +179,7 @@ class Infrastructure
     @hyper_client ||= HyperClient.new
   end
 
-  # Format to submit to UC6 Console API
+  # Format to submit to OnPrem Console API
   def api_format
     {
         name: name,

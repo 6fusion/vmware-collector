@@ -15,11 +15,3 @@ test:
       options:
         max_retries: 1
         retry_interval: 0
-
-staging:
-  sessions:
-    default:
-      database: 6fusion_meter_staging
-      hosts:
-        - localhost:27017
-      options:

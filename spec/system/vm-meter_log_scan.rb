@@ -24,7 +24,7 @@ known_errors = [
     '400 Bad Request',
     'ERROR -- :',
     'error:',
-    'uc6-connector(ERROR)',
+    'on-prem-connector(ERROR)',
     'undefined method',
     'NoMethodError',
     'FATAL',

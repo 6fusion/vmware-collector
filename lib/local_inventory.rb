@@ -203,7 +203,7 @@ class MachineInventory < MongoHash
   end
 
   # Before each save, we want to make sure we're as current as possible on any remote IDs that
-  #  may have been filled in by the UC6 Connector.
+  #  may have been filled in by the OnPrem Connector.
   #!! performance test this. it may be good to iterate over all machines and see if any are
   #  missing the remote_id first
   def refresh_remote_ids

@@ -19,14 +19,14 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: uc6-secret
+  name: on-prem-secret
   namespace: 6fusion-system
 data:
   api-host: "aHR0cDovLzE3Mi4xNy44LjIwMQo="
   log-level: "ZGVidWcK"
   oauth-endpoint: "b2F1dGgK"
   api-endpoint: "YXBpL3YxCg=="
-  organization-id: "Nzc2MTYzLTA0ODFlMThmMDA0NzQzZGE4OTFhYTlmN2M2NGRmNDQ4Cg=="
+  organization-id: "Nzc2MTYzLWVjZjc3ZDZlMmZkNTRhNThiODY4Y2E4ZWJmOGNmNjhiCg=="
   api-scope: "YWRtaW5fb3JnYW5pemF0aW9uCg=="
   collector-version: "YmV0YQo="
   registration-date: "MjAxNi0wNS0xMgo="
@@ -62,17 +62,17 @@ spec:
     volumeMounts:
     - name: vsphere-secret
       mountPath: /var/run/secrets/vmwarecollector/vsphere
-    - name: uc6-secret
-      mountPath: /var/run/secrets/vmwarecollector/uc6
+    - name: on-prem-secret
+      mountPath: /var/run/secrets/vmwarecollector/on_prem
   - name: vmware-collector-mongodb
     image: mongo:3.2
   volumes:
   - name: vsphere-secret
     secret:
       secretName: vsphere-secret
-  - name: uc6-secret
+  - name: on-prem-secret
     secret:
-      secretName: uc6-secret
+      secretName: on-prem-secret
 ---
 apiVersion: v1
 kind: ReplicationController
@@ -97,12 +97,12 @@ spec:
         volumeMounts:
         - name: vsphere-secret
           mountPath: /var/run/secrets/vmwarecollector/vsphere
-        - name: uc6-secret
-          mountPath: /var/run/secrets/vmwarecollector/uc6
+        - name: on-prem-secret
+          mountPath: /var/run/secrets/vmwarecollector/on-prem
       volumes:
       - name: vsphere-secret
         secret:
           secretName: vsphere-secret
-      - name: uc6-secret
+      - name: on-prem-secret
         secret:
-          secretName: uc6-secret
+          secretName: on-prem-secret

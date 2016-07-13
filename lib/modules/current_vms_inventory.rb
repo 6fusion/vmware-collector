@@ -12,7 +12,7 @@ module CurrentVmsInventory
   end
 
   def split_machine_inventory(inventory)
-    inventory.each_slice(configuration[:uc6_machines_by_inv_timestamp].to_i).to_a
+    inventory.each_slice(configuration[:on_prem_machines_by_inv_timestamp].to_i).to_a
   end
 
   def initialize_inventoried_timestamps_with_inventory_for(current_time)

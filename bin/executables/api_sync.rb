@@ -1,21 +1,21 @@
 module Executables
   class ApiSync
     def initialize(scheduler)
-      logger.info 'Initializing UC6Connector'
+      logger.info 'Initializing OnPremConnector'
       @scheduler = scheduler
       begin
-        @uc6_connector = UC6Connector.new
+        @on_prem_connector = OnPremConnector.new
       rescue Exception => e
-        logger.fatal "Unable to start UC6Connector: #{e.message}"
+        logger.fatal "Unable to start OnPremConnector: #{e.message}"
         exit(1)
       end
     end
 
     def execute
-      logger.info 'Executing UC6 submission checks'
+      logger.info 'Executing OnPrem submission checks'
 
       begin
-        @uc6_connector.submit
+        @on_prem_connector.submit
       rescue StandardError => e
         logger.fatal "Encountered unhandled exception: #{e.message}."
         logger.debug e.backtrace
@@ -23,7 +23,7 @@ module Executables
         exit(1)
       end
 
-      logger.info 'Shutting down UC6 submission handler'
+      logger.info 'Shutting down OnPrem submission handler'
     end
   end
 end

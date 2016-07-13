@@ -170,8 +170,8 @@ class MissingLocalReadingsHandler
   #  Only going back 23 hours to provide "wiggle room" that should avoid collecting for time that vCenter is purging (i.e., typically at 24 hours)
   def window_start_time
     @window_start_time ||= begin
-      if configuration.present_value?(:uc6_registration_date) # PENDING TO VALIDATE FORMAT
-        registration_date = Time.parse(configuration[:uc6_registration_date])
+      if configuration.present_value?(:on_prem_registration_date) # PENDING TO VALIDATE FORMAT
+        registration_date = Time.parse(configuration[:on_prem_registration_date])
         logger.info "REGISTRATION DATE #{registration_date}"
         ((registration_date > 23.hours.ago) ?
             (registration_date + 5.minutes) : # Add 5 minutes so we don't end up rounding down to a time before registration. e.g. 9:03 would truncate to 9:00
