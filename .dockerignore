@@ -1,14 +1,12 @@
 .[a-z]*
 spec
-tasks
 test
 
 build
 Dockerfile
 docker-compose.yml
-Gemfile.lock
 README.md
-Rakefile
+
 setup
 user-data*
 Vagrantfile

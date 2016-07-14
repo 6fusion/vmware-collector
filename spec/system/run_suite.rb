@@ -26,7 +26,7 @@ api_specs = [
 ]
 
 gui_specs = [
-    'uc6_console_login',
+    'on_prem_console_login',
     'watir-rails-test'
 ]
 

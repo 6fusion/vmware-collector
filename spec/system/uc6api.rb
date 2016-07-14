@@ -1,4 +1,4 @@
-#### Common UC6 api related stuff ####
+#### Common OnPrem api related stuff ####
 
 require 'time_difference'
 
@@ -25,7 +25,7 @@ Auth_params = {
 #    :SCOPE => 'manage_meters'
 }
 
-Token_file = ".UC6Token"
+Token_file = ".OnPremToken"
 Token_expire_time = 59
 
 # Process to reuse oauth tokens saved locally.  Saves time on repetitive runs.
@@ -71,7 +71,7 @@ def extract_id(self_link, type)
   id = link['id']
 end
 
-# Get an oauth token for access to UC6 API based on Auth_params
+# Get an oauth token for access to OnPrem API based on Auth_params
 def get_token (params)
     client = OAuth2::Client.new(params[:APP_ID], params[:APP_SECRET], :site => params[:OAUTH_URL])
 

@@ -9,9 +9,9 @@ class Registration
   include GlobalConfiguration
   using RbVmomiExtensions
 
-  # Map existing machine inventory in UC6 to existing machine inventory in vSphere
-  #  using machine names. Expects the UC6 connector to have already retrieved the inventory
-  #  from the UC6 API and populated the local data store with it.
+  # Map existing machine inventory in OnPrem to existing machine inventory in vSphere
+  #  using machine names. Expects the OnPrem connector to have already retrieved the inventory
+  #  from the OnPrem API and populated the local data store with it.
   def self.initialize_platform_ids
     inventory = MachineInventory.new(nil, :name)
     result = VSphere.session.propertyCollector.RetrievePropertiesEx(specSet: [InventoryCollector.vm_filter_spec(['name'])],

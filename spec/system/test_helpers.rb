@@ -8,7 +8,7 @@ require 'airborne'
 ### Define consts ###
 UUID_pattern = /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/
 
-uc6admin = {
+on_premadmin = {
     :NAME => "6fusion Staging",
     :LOCAL_TEST_URI => 'urn:ietf:wg:oauth:2.0:oob',
     :APP_ID => '188d002dd473d0707bcf01352fdbe4b7eb417d5299ac4c19dd426775fbe2a8e1',
@@ -16,7 +16,7 @@ uc6admin = {
     :APP_CALLBACK_URL => 'http://localhost:3001/',
     :SITE_BASE_URL => 'https://api-staging.6fusion.com/',
     :SITE_OAUTH_PATH => '/oauth/authorize',
-    :USER_EMAIL => 'uc6admin@6fusion.com',
+    :USER_EMAIL => 'on_premadmin@6fusion.com',
     :USER_PASSWORD => 'may the schwartz be with you'
 }
 # Token: 088b0849fa7803fd4c0c80bb22458eff2da0596ba41f4073d0d3743c6ec43fb1
@@ -47,7 +47,7 @@ prod_test_acct = {
 }
 # Token: 85f643f5b49b1e89b8dcf020f0e81d9dfea99148f4340e5cc0ff1a1887b1bad5
 
-Auth_params = uc6admin
+Auth_params = on_premadmin
 
 # To colorize log output
 class String

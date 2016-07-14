@@ -30,24 +30,13 @@ GEM
     connection_pool (2.2.0)
     database_cleaner (1.5.1)
     diff-lcs (1.2.5)
-    docker-api (1.28.0)
-      excon (>= 0.38.0)
-      json
     domain_name (0.5.20160310)
       unf (>= 0.0.5, < 1.0.0)
-    eventmachine (1.2.0.1)
-    excon (0.49.0)
     extlib (0.9.16)
     factory_girl (4.5.0)
       activesupport (>= 3.0.0)
     faraday (0.9.2)
       multipart-post (>= 1.2, < 3)
-    faye-websocket (0.10.0)
-      eventmachine (>= 0.12.0)
-      websocket-driver (>= 0.5.1)
-    foreman (0.78.0)
-      thor (~> 0.19.1)
-    gibberish (2.0.0)
     google-api-client (0.8.6)
       activesupport (>= 3.2)
       addressable (~> 2.3)
@@ -93,12 +82,6 @@ GEM
       moped (~> 2.0.0)
       origin (~> 2.1)
       tzinfo (>= 0.3.37)
-    mongoid-compatibility (0.4.0)
-      activesupport
-      mongoid (>= 2.0)
-    mongoid-locker (0.3.4)
-      mongoid (>= 2.8, < 6.0)
-      mongoid-compatibility
     moped (2.0.7)
       bson (~> 3.0)
       connection_pool (~> 2.0)
@@ -156,7 +139,6 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.2.0)
     rspec-support (3.2.2)
-    ruby-dbus (0.11.0)
     rubyzip (1.2.0)
     rufus-scheduler (3.2.0)
     signet (0.7.2)
@@ -165,7 +147,6 @@ GEM
       jwt (~> 1.5)
       multi_json (~> 1.10)
     slop (3.6.0)
-    thor (0.19.1)
     thread_safe (0.3.5)
     time_difference (0.4.2)
       activesupport
@@ -177,9 +158,6 @@ GEM
     unf (0.1.4)
       unf_ext
     unf_ext (0.0.7.2)
-    websocket-driver (0.6.3)
-      websocket-extensions (>= 0.1.0)
-    websocket-extensions (0.1.2)
 
 PLATFORMS
   ruby
@@ -190,15 +168,10 @@ DEPENDENCIES
   awesome_print
   concurrent-ruby-ext
   database_cleaner (~> 1.4)
-  docker-api
   factory_girl (~> 4.5.0)
-  faye-websocket (= 0.10.0)
-  foreman
-  gibberish
   google_drive
   json
   mongoid (~> 4.0)
-  mongoid-locker
   net-ssh
   nokogiri (= 1.6.6.2)
   oauth2 (~> 1.0)
@@ -208,7 +181,6 @@ DEPENDENCIES
   rest-client (~> 1.8)
   roo-google
   rspec (~> 3.2.0)
-  ruby-dbus
   rufus-scheduler (~> 3.0)
   time_difference
   tzinfo-data

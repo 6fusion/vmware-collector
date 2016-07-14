@@ -18,7 +18,7 @@ class Reading
 
   index({ record_status: 1 })
 
-  # Don't want to expire based on submitted, since if problem with UC6Connector
+  # Don't want to expire based on submitted, since if problem with OnPremConnector
   # The meter-database can exceed storage limits and crash all services
   index({end_time: 1}, {expire_after_seconds: 30.hours})
 

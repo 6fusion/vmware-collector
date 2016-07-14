@@ -20,9 +20,9 @@ module Logging
       STDOUT.sync = true # disable output buffering; makes it hard to follow docker logs
       @logger = Logger.new(STDOUT)
       @logger.progname = File.basename($PROGRAM_NAME, '.rb')
-      @logger.formatter = proc { |severity, _datetime, progname, msg|
-        "#{progname}(#{severity}): #{msg}\n"
-      }
+      # @logger.formatter = proc { |severity, _datetime, progname, msg|
+      #   "#{progname}(#{severity}): #{msg}\n"
+      # }
     end
   end
 end

@@ -32,17 +32,11 @@ class MissingLocalReadingsHandler
   end
 
   def unlock_old_inventory_timestamps
-    orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}, record_status: 'queued_for_metering')
+    orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}).or({record_status: 'queued_for_metering'})
                               .and(locked: true).lt(inventory_at: 15.minutes.ago)
+    logger.info "orphaned_timestamps = > #{orphaned_timestamps.count}"
     orphaned_timestamps.each do |it|
-      begin
-        it.with_lock do
-          it.update_attributes(locked: false)
-        end
-      rescue Mongoid::Locker::LockError => e
-        logger.debug "Could not unlock #{it.inventory_at} with the inventory #{it.machine_inventory}\n"
-        next
-      end
+      it.update_attributes(locked: false, locked_by: nil)
     end
   end
 
@@ -90,8 +84,9 @@ class MissingLocalReadingsHandler
     # We're only interested in inventories with a status of metering; a status of 'inventoried', even for an older timestamp,
     #  will still get picked up by the normal Metrics Collector process.
     #  The intent here is to look for any InventoriedTimestamps "stuck" in the 'metering' status, which is a fairly unlikely scenario.
-    orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}, record_status: 'queued_for_metering')
+    orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}).or({record_status: 'queued_for_metering'})
                               .and(locked: false).lt(inventory_at: 15.minutes.ago) # We want to make sure to not overlap with the actual metrics collector process
+    logger.info "orphaned_timestamps = > #{orphaned_timestamps.count}"
     orphaned_timestamps.group_by{|i| i.inventory_at}.each do |it|
       inv_timestamps = it[1]
       generate_machine_readings_with_missing(inv_timestamps[0].inventory_at) # Map-Reduce to build new collection
@@ -112,6 +107,7 @@ class MissingLocalReadingsHandler
         logger.info("Filling in missing readings for #{data.size} machines for time: #{inv_timestamps[0].inventory_at}")
 
         morefs_for_missing = data.map { |pair| pair['moref'] }
+        logger.info "Inventory => #{morefs_for_missing}"
         recollect_missing_readings(inv_timestamps, morefs_for_missing)
       end
       if missing_machine_morefs_by_timestamp.blank?
@@ -122,30 +118,41 @@ class MissingLocalReadingsHandler
 
   def recollect_missing_readings(inv_timestamps, morefs_for_missing)
     morefs_pending = InventoriedTimestamp.or(record_status: "created").or(record_status: "inventoried").or( record_status: "metered").and(inventory_at: inv_timestamps[0].inventory_at)
-    begin
-      if morefs_pending.blank?
-        counter = 0
-        inv_timestamps.each do |dup|
-          dup.with_lock do
-            if counter == 0
-              dup.update_attributes(locked: true)
-              metrics_collector.run(dup, morefs_for_missing)
-            else
-              dup.update_attributes(locked: true, record_status: "metered")
-            end
-            counter +=1
+    if morefs_pending.blank?
+      counter = 0
+      inv_timestamps.each do |dup|
+        if counter == 0
+          if inventoried_timestamp_unlocked? dup
+            dup.locked = true
+            dup.locked_by = @container_name
+            dup.record_status = 'queued_for_metering'
+            dup.save!
+          end
+          next if not inventoried_timestamp_free_to_meter? dup
+          logger.debug "Running ID => #{dup._id} ==#{dup.inventory_at} with inventory #{dup.machine_inventory}"
+          metrics_collector.run(dup, morefs_for_missing)
+        else
+          if inventoried_timestamp_unlocked? dup
+            dup.locked = true
+            dup.locked_by = @container_name
+            dup.record_status = 'metered'
+            dup.save!
           end
         end
-      else
-        inv_timestamps.each do |dup|
-          dup.with_lock do
-            dup.update_attributes(locked: true)
-            metrics_collector.run(dup, dup.machine_inventory)
-          end
-        end
+        counter +=1
       end
-    rescue Mongoid::Locker::LockError => e
-      logger.debug "Could not get #{dup.inventory_at} with the inventory #{morefs_for_missing}\n"
+    else
+      inv_timestamps.each do |dup|
+        if inventoried_timestamp_unlocked? dup
+          dup.locked = true
+          dup.locked_by = @container_name
+          dup.record_status = 'queued_for_metering'
+          dup.save!
+        end
+        next if not inventoried_timestamp_free_to_meter? dup
+        logger.debug "Running ID => #{dup._id} ==#{dup.inventory_at} with inventory #{dup.machine_inventory}"
+        metrics_collector.run(dup, dup.machine_inventory)
+      end
     end
   end
 
@@ -163,8 +170,8 @@ class MissingLocalReadingsHandler
   #  Only going back 23 hours to provide "wiggle room" that should avoid collecting for time that vCenter is purging (i.e., typically at 24 hours)
   def window_start_time
     @window_start_time ||= begin
-      if configuration.present_value?(:uc6_registration_date) # PENDING TO VALIDATE FORMAT
-        registration_date = Time.parse(configuration[:uc6_registration_date])
+      if configuration.present_value?(:on_prem_registration_date) # PENDING TO VALIDATE FORMAT
+        registration_date = Time.parse(configuration[:on_prem_registration_date])
         logger.info "REGISTRATION DATE #{registration_date}"
         ((registration_date > 23.hours.ago) ?
             (registration_date + 5.minutes) : # Add 5 minutes so we don't end up rounding down to a time before registration. e.g. 9:03 would truncate to 9:00

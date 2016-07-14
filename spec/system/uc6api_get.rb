@@ -1,19 +1,19 @@
 #!/usr/bin/env ruby
-# Script to easily get some common stuff from the UC6 API
+# Script to easily get some common stuff from the OnPrem API
 # 5/7/15 Bob S.
 
 require 'rest-client'
 require 'trollop'
 require 'pry'
 require 'oauth2'
-require_relative 'uc6api'; # Note: Auth params, constants and methods are set here 
+require_relative 'on_premapi'; # Note: Auth params, constants and methods are set here
 
 opts = Trollop.options do 
     banner <<-EOS
 
-uc6api_get:  Get stuff from UC6 API
+on_premapi_get:  Get stuff from OnPrem API
 Usage:
-    ruby uc6api_get.rb [options]
+    ruby on_premapi_get.rb [options]
 
 (Note: API auth params are hard coded for #{Default_apiurl})
 
@@ -26,7 +26,7 @@ EOS
     opt :user, 'API user email', :default => Default_user
     opt :password, 'API user password', :default => Default_passwd
     opt :url, 'API url', :default => Default_apiurl
-    opt :show_token, 'Show UC6 token used (default: dont show)'
+    opt :show_token, 'Show OnPrem token used (default: dont show)'
     opt :col_header, 'Don`t show column header (default: show header)', :default => false
     opt :day, 'Hourly readings so far today for all full hours (readings related endpoints only)'
     opt :limit, "Response limit", :default => Default_resp_limit
@@ -45,7 +45,7 @@ Auth_params[:USER_PASSWD] = opts[:password]
 oauth_token = saved_token(Auth_params, opts[:quiet])
 
 if opts[:show_token]
-    STDERR.puts "UC6 API Token: #{oauth_token}"
+    STDERR.puts "OnPrem API Token: #{oauth_token}"
 end
 
 # URL Params list for API request
