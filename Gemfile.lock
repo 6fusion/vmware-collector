@@ -166,6 +166,7 @@ DEPENDENCIES
   activesupport (~> 4.0)
   airborne (>= 0.0.18)
   awesome_print
+  bundler
   concurrent-ruby-ext
   database_cleaner (~> 1.4)
   factory_girl (~> 4.5.0)

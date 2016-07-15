@@ -1,27 +1,35 @@
 FROM alpine:3.2
 MAINTAINER 6fusion dev <dev@6fusion.com>
 
-ENV BUILD_PACKAGES build-base curl-dev libffi-dev gcc git zlib-dev
-ENV RUBY_PACKAGES nodejs ruby ruby-bundler ruby-dev ruby-io-console ruby-nokogiri
-ENV DEV_PACKAGES bash vim
-ENV RUNTIME_PACKAGES ca-certificates
+# Define all Environment variables in one single layer
+ENV BUILD_PACKAGES="build-base curl-dev libffi-dev gcc git zlib-dev" \
+    RUBY_PACKAGES="ruby ruby-bundler ruby-dev ruby-io-console ruby-nokogiri" \
+    RUNTIME_PACKAGES="ca-certificates bash" \
+    APPDIR="/usr/src/app" \
+    RACK_ENV=production \
+    METER_ENV=production \
+    CONTAINER=inventory \
+    SECRETS_PATH="/var/run/secrets/vmwarecollector"
 
-ENV METER_ENV development
-ENV CONTAINER metrics
-ENV SECRETS_PATH /var/run/secrets/vmwarecollector
-
-RUN apk update && \
-    apk upgrade && \
-    apk add $BUILD_PACKAGES $RUBY_PACKAGES $DEV_PACKAGES $RUNTIME_PACKAGES && \
-    mkdir -p /usr/src/app
-
-WORKDIR  /usr/src/app
-COPY . /usr/src/app
-
+RUN \
 # Update and install all of the required packages.
-# At the end, remove the apk cache
+  apk update && \
+  apk upgrade && \
+  apk add $BUILD_PACKAGES $RUBY_PACKAGES $DEV_PACKAGES $RUNTIME_PACKAGES && \
+  mkdir -p $APPDIR && \
+# Clean up
+  rm -rf /var/cache/apk/*
 
-RUN bundle install
+WORKDIR  $APPDIR
+COPY . $APPDIR
+
+RUN \
+# Install the gems required by the application
+  bundle install --without test && \
+# Remove unnecessary files/folders
+  rm -rf .git .gitignore .vagrant && \
+# clean unused gems
+  bundle clean --force
 
 ENTRYPOINT ["ruby", "bin/metrics-collector.rb"]
 

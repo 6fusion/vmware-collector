@@ -1,5 +1,7 @@
 source 'https://rubygems.org'
 
+gem 'bundler'
+
 # meter requirements
 gem 'activesupport',   '~>4.0'
 gem 'concurrent-ruby-ext', require: 'concurrent'
@@ -14,6 +16,7 @@ gem 'rake'
 gem 'tzinfo-data'
 
 gem 'json'
+
 # Locked version to prevent errors, etc
 gem 'nokogiri', '=1.6.6.2'
 

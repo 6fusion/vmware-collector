@@ -10,12 +10,12 @@ metadata:
   name: vsphere-secret
   namespace: 6fusion-system
 data:
-  host: "Z2FwdmNuMDEtZ2FwdnNwaGVyZTU1ZW52aXJvLXF5dGsxc3ZqLnNydi5yYXZjbG91ZC5jb20K"
-  user: "bWNvdG9AdnNwaGVyZS5sb2NhbAo="
-  password: "QHBhc3N3b3JkMQo="
-  ignore-ssl-errors: "dHJ1ZQo="
-  log-level: "ZGVidWcK"
-  session-limit: "MTAK"
+  host: "BASE64_VALUE"                      # Host definition for vsphere
+  user: "BASE64_VALUE"                      # User information for vpshere
+  password: "BASE64_VALUE"                  # Password information for vsphere
+  ignore-ssl-errors: "BASE64_VALUE"         # Ignore ssl-errors
+  log-level: "BASE64_VALUE"                 # Define log level
+  session-limit: "BASE64_VALUE"             # Total elements valuable for each session
 ---
 apiVersion: v1
 kind: Secret
@@ -23,29 +23,29 @@ metadata:
   name: on-prem-secret
   namespace: 6fusion-system
 data:
-  api-host: "aHR0cDovLzE3Mi4xNy44LjIwMQo=" # Host definition for on-prem-api
-  log-level: "ZGVidWcK" # Defined level for showing elements in log (defaults to debug)
-  api-endpoint: "YXBpL3YxCg==" # Base API endpoint Defaults to /v1/api
-  organization-id: "Nzc2MTYzLWM2NzlmZDNiY2QwNzQ4YTA5MWViOWQxZWEwNjczYzJjCg==" # Organization ID on on-prem-api
-  collector-version: "YmV0YQo=" # Define Collector Version
-  registration-date: "MjAxNi0wNS0xMgo=" # You need to set this value as the timestamp of the installation date
-  machines-by-inv-timestamp: "MTAw" # Define the total of machines that are included on each request to obtain metrics from vsphere
-  inventoried-limit: "Mwo="
+  api-host: "BASE64_VALUE"                  # Host definition for on-prem-api
+  log-level: "BASE64_VALUE"                 # Defined level for showing elements in log (defaults to debug)
+  api-endpoint: "BASE64_VALUE"              # Base API endpoint Defaults to /v1/api
+  organization-id: "BASE64_VALUE"           # Organization ID on on-prem-api
+  collector-version: "BASE64_VALUE"         # Define Collector Version
+  registration-date: "BASE64_VALUE"         # You need to set this value as the timestamp of the installation date
+  machines-by-inv-timestamp: "BASE64_VALUE" # Define the total of machines that are included on each request to obtain metrics from vsphere
+  inventoried-limit: "BASE64_VALUE"
   # batch_size: # Number of simultaneous requests for Vsphere
   #### OAUTH RELATED CONFIGURATION
-  # oauth-endpoint: "b2F1dGgK" # Oauth path that will be included after api-host (defaults to oauth)
-  # oauth-token: # Oauth 2 token to authenticate the requests
-  # refresh-token: # Oauth 2 token that will be used if oauth-token expires (most of the times not required)
-  # login-email: # Email for login the user in order to generate a new oauth token (not required if "oauth-token" provided)
-  # login-password: # Password for login the user in order to generate a new oauth token (not required if "oauth-token" provided)
-  # application-id: # Oauth Application id used to request a new oauth token (not required if "oauth-token" provided)
-  # application-secret: # Oauth Application secret used to request a new oauth token (not required if "oauth-token" provided)
-  # api-scope: "YWRtaW5fb3JnYW5pemF0aW9uCg==" # Scope required for oauth authentication
+  # oauth-endpoint: "BASE64_VALUE"          # Oauth path that will be included after api-host (defaults to oauth)
+  # oauth-token: "BASE64_VALUE"             # Oauth 2 token to authenticate the requests
+  # refresh-token: "BASE64_VALUE"           # Oauth 2 token that will be used if oauth-token expires (most of the times not required)
+  # login-email: "BASE64_VALUE"             # Email for login the user in order to generate a new oauth token (not required if "oauth-token" provided)
+  # login-password: "BASE64_VALUE"          # Password for login the user in order to generate a new oauth token (not required if "oauth-token" provided)
+  # application-id: "BASE64_VALUE"          # Oauth Application id used to request a new oauth token (not required if "oauth-token" provided)
+  # application-secret: "BASE64_VALUE"      # Oauth Application secret used to request a new oauth token (not required if "oauth-token" provided)
+  # api-scope: "BASE64_VALUE"               # Scope required for oauth authentication
   #### Proxy related config (if required)
-  # proxy-host: b2F1d # Host required for proxy connection
-  # proxy-port: b2F1d # Port required for proxy connection
-  # proxy-user: b2F1d # User required for proxy connection
-  # proxy-password: b2F1d # Password required for proxy connection
+  # proxy-host: "BASE64_VALUE"              # Host required for proxy connection
+  # proxy-port: "BASE64_VALUE"              # Port required for proxy connection
+  # proxy-user: "BASE64_VALUE"              # User required for proxy connection
+  # proxy-password: "BASE64_VALUE"          # Password required for proxy connection
 ---
 apiVersion: v1
 kind: Service
@@ -73,7 +73,7 @@ metadata:
 spec:
   containers:
   - name: vmware-collector-inventory
-    image: 172.17.8.201:5000/vmware-collector-inventory # Docker image of the 6fusion VmWare Inventory Collector
+    image: 6fusion/vmware-collector # Docker image of the 6fusion VmWare Inventory Collector
     volumeMounts:
     - name: vsphere-secret
       mountPath: /var/run/secrets/vmwarecollector/vsphere
@@ -97,7 +97,7 @@ metadata:
   labels:
     6fusion-app: vmwarecollector-metrics
 spec:
-  replicas: 2  # Set the amount of metrics collectors replicas (default 2)
+  replicas: 3  # Set the amount of metrics collectors replicas (default 2)
   selector:
     6fusion-app: vmwarecollector-metrics
   template:
@@ -108,7 +108,7 @@ spec:
     spec:
       containers:
       - name: vmware-collector-metrics
-        image: 172.17.8.201:5000/vmware-collector-metrics # Docker image of the 6fusion VmWare Metrics Collector
+        image: 6fusion/vmware-collector-metrics # Docker image of the 6fusion VmWare Metrics Collector
         volumeMounts:
         - name: vsphere-secret
           mountPath: /var/run/secrets/vmwarecollector/vsphere
