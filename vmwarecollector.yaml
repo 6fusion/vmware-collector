@@ -30,7 +30,7 @@ data:
   collector-version: "YmV0YQo=" # Define Collector Version
   registration-date: "MjAxNi0wNS0xMgo=" # You need to set this value as the timestamp of the installation date
   machines-by-inv-timestamp: "MTAw" # Define the total of machines that are included on each request to obtain metrics from vsphere
-  inventoried-limit: "Mwo="
+  inventoried-limit: "Mwo=" #Define the limit of inventoried timestamps that each replica controller will take each round
   # batch_size: # Number of simultaneous requests for Vsphere
   #### OAUTH RELATED CONFIGURATION
   # oauth-endpoint: "b2F1dGgK" # Oauth path that will be included after api-host (defaults to oauth)
