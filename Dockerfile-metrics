@@ -6,9 +6,7 @@ ENV BUILD_PACKAGES="build-base curl-dev libffi-dev gcc git zlib-dev" \
     RUBY_PACKAGES="ruby ruby-bundler ruby-dev ruby-io-console ruby-nokogiri" \
     RUNTIME_PACKAGES="ca-certificates bash" \
     APPDIR="/usr/src/app" \
-    RACK_ENV=production \
-    METER_ENV=production \
-    CONTAINER=inventory \
+    CONTAINER=metrics \
     SECRETS_PATH="/var/run/secrets/vmwarecollector"
 
 RUN \
@@ -30,6 +28,9 @@ RUN \
   rm -rf .git .gitignore .vagrant && \
 # clean unused gems
   bundle clean --force
+
+#Always leave these 2 at the end to allow changes that takes no more than seconds
+ENV RACK_ENV=development METER_ENV=development
 
 ENTRYPOINT ["ruby", "bin/metrics-collector.rb"]
 
