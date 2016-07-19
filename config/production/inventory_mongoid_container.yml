@@ -1,7 +1,6 @@
 production:
   sessions:
     default:
-      database: 6fusion_meter_production
+      database: 6fusion_meter
       hosts:
         - localhost:27017
-      options:
