@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if [[ $# -ne 3 ]] ; then
-    echo 'Get UC6 machine counts for each infratructure'
+    echo 'Get OnPrem machine counts for each infratructure'
     echo 'Usage: org start_inf end_inf'
     exit 1
 fi

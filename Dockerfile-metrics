@@ -1,0 +1,36 @@
+FROM alpine:3.2
+MAINTAINER 6fusion dev <dev@6fusion.com>
+
+# Define all Environment variables in one single layer
+ENV BUILD_PACKAGES="build-base curl-dev libffi-dev gcc git zlib-dev" \
+    RUBY_PACKAGES="ruby ruby-bundler ruby-dev ruby-io-console ruby-nokogiri" \
+    RUNTIME_PACKAGES="ca-certificates bash" \
+    APPDIR="/usr/src/app" \
+    CONTAINER=metrics \
+    SECRETS_PATH="/var/run/secrets/vmwarecollector"
+
+RUN \
+# Update and install all of the required packages.
+  apk update && \
+  apk upgrade && \
+  apk add $BUILD_PACKAGES $RUBY_PACKAGES $DEV_PACKAGES $RUNTIME_PACKAGES && \
+  mkdir -p $APPDIR && \
+# Clean up
+  rm -rf /var/cache/apk/*
+
+WORKDIR  $APPDIR
+COPY . $APPDIR
+
+RUN \
+# Install the gems required by the application
+  bundle install --without test && \
+# Remove unnecessary files/folders
+  rm -rf .git .gitignore .vagrant && \
+# clean unused gems
+  bundle clean --force
+
+#Always leave these 2 at the end to allow changes that takes no more than seconds
+ENV RACK_ENV=development METER_ENV=development
+
+ENTRYPOINT ["ruby", "bin/metrics-collector.rb"]
+

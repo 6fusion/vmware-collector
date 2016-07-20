@@ -1,4 +1,4 @@
-# Script to check log for vmware-meter errors
+# Script to check log for vmware-collector errors
 # 5/27/15, Bob S.
 require 'rubygems'
 require 'net/ssh'
@@ -24,7 +24,7 @@ known_errors = [
     '400 Bad Request',
     'ERROR -- :',
     'error:',
-    'uc6-connector(ERROR)',
+    'on-prem-connector(ERROR)',
     'undefined method',
     'NoMethodError',
     'FATAL',

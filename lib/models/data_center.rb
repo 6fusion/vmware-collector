@@ -10,7 +10,7 @@ class DataCenter
   embeds_many :hosts
   accepts_nested_attributes_for :hosts
 
-  def self.build_from_vsphere_response(attribute_set)
+  def self.build_from_vsphere_response(_attribute_set)
     infrastructure = Infrastructure.new
 
     # Not clear yet how going to get the attributes and how to split up

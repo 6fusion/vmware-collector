@@ -6,7 +6,8 @@ class Nic
   include Mongoid::Timestamps
   include Matchable
 
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
   field :platform_id, type: String
   field :record_status, type: String
   field :name, type: String
@@ -25,16 +26,16 @@ class Nic
   end
 
   def submit_delete(nic_endpoint)
-    logger.info "Deleting nic #{platform_id} for machine #{machine.platform_id} from UC6 API, at nic_endpoint #{nic_endpoint}"
+    logger.info "Deleting nic #{platform_id} for machine #{machine.platform_id} from OnPrem API, at nic_endpoint #{nic_endpoint}"
     begin
       response = hyper_client.delete(nic_endpoint)
       self.record_status = 'verified_delete' if response.code == 204
     rescue RestClient::ResourceNotFound => e
-      logger.error "Error deleting nic #{platform_id} for machine #{machine.platform_id} from UC6 API"
+      logger.error "Error deleting nic #{platform_id} for machine #{machine.platform_id} from OnPrem API"
       logger.debug "#{self.inspect}"
       self.record_status = 'unverified_delete'
     rescue
-      logger.error "Error deleting machine '#{name} from UC6 API"
+      logger.error "Error deleting machine '#{name} from OnPrem API"
       raise
     end
 
@@ -45,7 +46,7 @@ class Nic
     {
       "id": remote_id,
       "name": name,
-      "kind": kind,
+      "kind": kind.upcase,
       "ip_address": ip_address,
       "mac_address": mac_address
     }

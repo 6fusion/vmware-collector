@@ -1,32 +1,35 @@
-
+require 'global_configuration'
 require 'logging'
 require 'disk'
 require 'nic'
 require 'matchable'
-
+require 'on_prem_url_generator'
 class Machine
   include Mongoid::Document
   include Mongoid::Timestamps
   include Matchable
   include Logging
+  include OnPremUrlGenerator
+  include GlobalConfiguration
 
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
   field :platform_id, type: String
 
   field :record_status, type: String
   field :inventory_at,  type: DateTime
-  field :name,          type: String            # A bunch of bad defaults, since the UC6 API doesn't support nils
+  field :name, type: String # A bunch of bad defaults, since the OnPrem API doesn't support nils
   field :os,            type: String,   default: ""
   field :virtual_name,  type: String,   default: ""
   field :cpu_count,     type: Integer,  default: 1  # Console requires a value for count and mhz > 0
-  field :cpu_speed_mhz, type: Integer,  default: 1
+  field :cpu_speed_hz, type: Integer,  default: 1
   field :memory_bytes,  type: Integer,  default: 0
   field :status,        type: String,   default: 'unknown'
-  field :tags,          type: String,   default: '' # Currently not supported by vSphere API
+  field :tags,          type: Array,   default: []
   field :metrics,       type: Hash
   field :submitted_at,  type: DateTime
 
-  field :infrastructure_remote_id, type: Integer
+  field :infrastructure_remote_id, type: String
   field :infrastructure_platform_id, type: String
 
   embeds_many :disks
@@ -84,7 +87,6 @@ class Machine
 
   def self.build_from_vsphere_vm(attribute_set)
     machine = Machine.new
-
     machine.assign_machine_attributes(attribute_set)
     machine.assign_machine_disks(attribute_set[:disks])
     machine.assign_machine_nics(attribute_set[:nics])
@@ -165,16 +167,17 @@ class Machine
     end
   end
 
-  # Format to submit to UC6 Console API
+  # Format to submit to OnPrem Console API
   def api_format
     machine_api_format = {
-       "name": name,
-       "virtual_name": platform_id,
-       "cpu_count": cpu_count,
-       "cpu_speed_mhz": cpu_speed_mhz,
-       "maximum_memory_bytes": memory_bytes,
-       "status": status,
-       "infrastructure_id": infrastructure_remote_id
+       'name': name,
+       'custom_id': platform_id,
+       'cpu_count': cpu_count,
+       'cpu_speed_hz': cpu_speed_hz,
+       'memory_bytes': memory_bytes,
+       'status': status,
+       'infrastructure_id': infrastructure_remote_id,
+       'tags': tags
     }
 
     # !!! Make sure if field is missing these won't blow up
@@ -187,38 +190,36 @@ class Machine
     machine_api_format
   end
 
-  def submit_create(machines_endpoint)
-    logger.info "Creating machine #{name} in UC6 API"
+  def submit_create
+    logger.info "Creating machine #{name} in OnPrem API"
     begin
-      # Avoid timeout issue: Successfully creates in UC6, but times out before returning 200 with remote_id
-      # Handle these failed creates the next time uc6_connector runs
+      # Avoid timeout issue: Successfully creates in OnPrem, but times out before returning 200 with remote_id
+      # Handle these failed creates the next time on_prem_connector runs
       self.update_attribute(:record_status, 'failed_create') # Gets set to 'verified_create' if successful
 
-      response = hyper_client.post(machines_endpoint, api_format)
-
-      if (response and response.code == 200 and response.remote_id)
-        self.remote_id = response.remote_id
+      response = hyper_client.post(machines_post_url(infrastructure_id: infrastructure_remote_id), api_format)
+      if (response && response.code == 200 && response.json['id'])
+        self.remote_id = response.json['id']
 
         # Machine create (POST) doesn't return remote_ids for disks and nics
         # So, do additional request here and map disk/nic remote_ids back to self
-        assign_disks_nics_remote_ids(machines_endpoint, self.remote_id)
-
+        assign_disks_nics_remote_ids(self.remote_id)
         self.submitted_at = Time.now.utc
         self.record_status = 'verified_create'
       end
     rescue RestClient::Conflict => e
-      logger.warn "Machine submission generated a conflict in UC6; attempting to update local instance to match"
-      machines = hyper_client.get_all_resources(machines_endpoint)
+      logger.warn 'Machine submission generated a conflict in OnPrem; attempting to update local instance to match'
+      machines = hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure_remote_id))
       me_as_json = machines.find{|machine| machine['name'].eql?(name) }
 
       if ( me_as_json )
-        self.remote_id = me_as_json['remote_id']
+        self.remote_id = me_as_json['id']
         self.record_status = 'verified_create'
       else
         logger.error "Could not retrieve remote_id from conflict response for machine: #{name}"
       end
     rescue StandardError => e
-      logger.error "Error creating machine '#{name}' in UC6 API"
+      logger.error "Error creating machine '#{name}' in OnPrem API"
       logger.debug e
       raise
     end
@@ -229,21 +230,21 @@ class Machine
   def already_submitted?(infrastructure_machines_endpoint)
     already_submitted = false
 
-    logger.info "Checking UC6 if #{self.platform_id} was already submitted"
+    logger.info "Checking OnPrem if #{self.platform_id} was already submitted"
     begin
-      and_query_json = { virtual_name: { eq: self.platform_id } }.to_json
+      and_query_json = { custom_id: { eq: self.platform_id } }.to_json
       response = hyper_client.get(infrastructure_machines_endpoint, {"and": and_query_json})
 
-      if response and response.code == 200
-        response_machines_json = response.json["embedded"]["machines"]
+      if response && response.code == 200
+        response_machines_json = (response.json)['embedded']['machines']
 
         unless response_machines_json.empty?
           # !!! May want to add check in case returns more than one machine (check status deleted?)
-          machine_remote_id = response_machines_json.first["remote_id"]
+          machine_remote_id = response_machines_json.first['id']
           self.remote_id = machine_remote_id
 
           # Note: Must do an extra request to get the remote_ids for disks/nics, then map to self's disks/nics
-          assign_disks_nics_remote_ids(infrastructure_machines_endpoint, machine_remote_id)
+          assign_disks_nics_remote_ids(machine_remote_id)
 
           already_submitted = true
         end
@@ -258,37 +259,38 @@ class Machine
   end
 
   def submit_delete(machine_endpoint)
-    logger.info "Deleting machine #{name} from UC6 API"
+    logger.info "Deleting machine #{name} from OnPrem API"
     begin
       response = hyper_client.delete(machine_endpoint)
       # Possible bug fix by setting to deleted for 404
       # Somehow machine was successfully deleted, but status wasn't changed
       self.record_status = 'deleted' if (response.code == 204 || response.code == 404)
     rescue StandardError => e
-      logger.error "Error deleting machine '#{name} from UC6 API"
+      logger.error "Error deleting machine '#{name} from OnPrem API"
       logger.debug e
       raise e
     end
   end
 
   def submit_update(machine_endpoint)
-    logger.info "Updating machine #{name} in UC6 API"
+    logger.info "Updating machine #{name} in OnPrem API"
     begin
       response = hyper_client.put(machine_endpoint, api_format)
-      if (response.present? and response.code == 200 and response.remote_id.present?)
+      response_json = response.json
+      if (response.present? && response.code == 200 && response_json['id'].present?)
         machine_with_disks_nics_response = hyper_client.get(machine_endpoint, {"expand": "disks,nics"})
         response_json = machine_with_disks_nics_response.json # Note: response#json populates remote_ids
 
-        response_disks_json = response_json["embedded"]["disks"]
+        response_disks_json = response_json['embedded']['disks']
         assign_disk_remote_ids(response_disks_json) if response_disks_json
 
-        response_nics_json = response_json["embedded"]["nics"]
+        response_nics_json = response_json['embedded']['nics']
         assign_nic_remote_ids(response_nics_json) if response_nics_json
 
         self.record_status = 'verified_update'
       end
     rescue
-      logger.error "Error updating machine '#{name} in UC6"
+      logger.error "Error updating machine '#{name} in OnPrem"
       raise
     end
 
@@ -300,8 +302,8 @@ class Machine
     other_attrs = other.attributes
 
     other.attribute_map.each do |mongo,vsphere|
-      if ( other_attrs[mongo] and
-           (self[mongo].blank? or ( self[mongo].is_a?(Integer) and self[mongo].eql?(0) ) ) )
+      if ( other_attrs[mongo] &&
+           (self[mongo].blank? or ( self[mongo].is_a?(Integer) && self[mongo].eql?(0) ) ) )
         self.send("#{mongo}=", other_attrs[mongo])
       end
     end
@@ -310,7 +312,7 @@ class Machine
     # If they are default values, then use previous (would be default if VSphere doesn't provide, true for VSphere updates)
     self.cpu_count = other.cpu_count if self.cpu_count.eql?(1)
     self.status = other.status if self.status.eql?('unknown')
-    self.cpu_speed_mhz = other.cpu_count if self.cpu_speed_mhz.eql?(1)
+    self.cpu_speed_hz = other.cpu_count if self.cpu_speed_hz.eql?(1)
 
 
     # !!! This code may be necessary for dealing with lost data during migration
@@ -325,14 +327,13 @@ class Machine
     # end
   end
 
-  def assign_disks_nics_remote_ids(infrastructure_machines_endpoint, machine_remote_id)
-    machine_with_disks_nics_response = hyper_client.get("#{infrastructure_machines_endpoint}/#{machine_remote_id}", {"expand": "disks,nics"})
+  def assign_disks_nics_remote_ids(machine_remote_id)
+    machine_with_disks_nics_response = hyper_client.get(retrieve_machine(machine_remote_id))
     response_json = machine_with_disks_nics_response.json # Note: response#json populates remote_ids
-
-    response_disks_json = response_json["embedded"]["disks"]
+    response_disks_json = response_json['embedded']['disks']
     assign_disk_remote_ids(response_disks_json) if response_disks_json
 
-    response_nics_json = response_json["embedded"]["nics"]
+    response_nics_json = response_json['embedded']['nics']
     assign_nic_remote_ids(response_nics_json) if response_nics_json
   end
 
@@ -340,13 +341,13 @@ class Machine
   private
   def assign_disk_remote_ids(response_disks_json)
     response_disks_ids_names = {}
-    response_disks_json.each { |disk| response_disks_ids_names[disk["name"]] = disk['remote_id'] }
+    response_disks_json.each { |disk| response_disks_ids_names[disk['name']] = disk['id'] }
     self.disks.each { |disk| disk.remote_id = response_disks_ids_names[disk.name] unless disk.remote_id } # Only need to update if no remote id
   end
 
   def assign_nic_remote_ids(response_nics_json)
     response_nics_ids_names = {}
-    response_nics_json.each { |nic| response_nics_ids_names[nic["name"]] = nic['remote_id'] }
+    response_nics_json.each { |nic| response_nics_ids_names[nic['name']] = nic['id'] }
     self.nics.each { |nic| nic.remote_id = response_nics_ids_names[nic.name] unless nic.remote_id } # Only need to update if no remote id
   end
 

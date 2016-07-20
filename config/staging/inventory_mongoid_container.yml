@@ -1,0 +1,6 @@
+staging:
+  sessions:
+    default:
+      database: 6fusion_meter_staging
+      hosts:
+        - localhost:27017

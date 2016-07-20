@@ -5,7 +5,8 @@ class Disk
   include Mongoid::Timestamps
   include Matchable
 
-  field :remote_id, type: Integer
+  # Remote ID it's a UUID
+  field :remote_id, type: String
   field :platform_id, type: String
   field :record_status, type: String
   field :name, type: String
@@ -26,17 +27,17 @@ class Disk
   end
 
   def submit_delete(disk_endpoint)
-    logger.info "Deleting disk #{platform_id} for machine #{machine.platform_id} from UC6 API, at disk_endpoint #{disk_endpoint}"
+    logger.info "Deleting disk #{platform_id} for machine #{machine.platform_id} from OnPrem API, at disk_endpoint #{disk_endpoint}"
     begin
       response = hyper_client.delete(disk_endpoint)
       self.record_status = 'verified_delete' if response.code == 204
     rescue RestClient::ResourceNotFound => e
-      logger.error "Error deleting disk #{platform_id} for machine #{machine.platform_id} from UC6 API"
+      logger.error "Error deleting disk #{platform_id} for machine #{machine.platform_id} from OnPrem API"
       logger.debug self.inspect
       logger.debug e
       self.record_status = 'unverified_delete'
     rescue StandardError => e
-      logger.error "Error deleting machine '#{name} from UC6 API"
+      logger.error "Error deleting machine '#{name} from OnPrem API"
       logger.debug e
       raise e
     end
@@ -48,7 +49,7 @@ class Disk
     {
       "id": remote_id,
       "name": name,
-      "maximum_size_bytes": size ? size : 0, # Default to 0 if nil, otherwise API throws error
+      "storage_bytes": size ? size : 0, # Default to 0 if nil, otherwise API throws error
       "kind": type
     }
   end

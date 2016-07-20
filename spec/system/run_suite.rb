@@ -3,7 +3,7 @@
 require_relative 'test_helpers'
 
 RSpec.configure do |config|
-  config.default_path = '~/Projects/vmware-meter/spec/system'
+    config.default_path = '~/Projects/vmware-collector/spec/system'
 end
 
 class Setup
@@ -26,7 +26,7 @@ api_specs = [
 ]
 
 gui_specs = [
-    'uc6_console_login',
+    'on_prem_console_login',
     'watir-rails-test'
 ]
 
