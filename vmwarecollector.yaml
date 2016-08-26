@@ -2,13 +2,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: 6fusion-vmwarecollector
-  namespace: 6fusion-system
+  namespace: 6fusion-vmware-collector
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: vsphere-secret
-  namespace: 6fusion-system
+  namespace: 6fusion-vmware-collector
 data:
   host: "BASE64_VALUE"                      # Host definition for vsphere
   user: "BASE64_VALUE"                      # User information for vpshere
@@ -21,7 +21,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: on-prem-secret
-  namespace: 6fusion-system
+  namespace: 6fusion-vmware-collector
 data:
   api-host: "BASE64_VALUE"                  # Host definition for on-prem-api
   log-level: "BASE64_VALUE"                 # Defined level for showing elements in log (defaults to debug)
@@ -51,7 +51,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: vmwarecollector-master
-  namespace: 6fusion-system
+  namespace: 6fusion-vmware-collector
   labels:
     6fusion-app: vmwarecollector-master
 spec:
@@ -64,10 +64,10 @@ spec:
   type: NodePort
 ---
 apiVersion: v1
-kind: Pod
+kind: ReplicationController
 metadata:
   name: 6fusion-vmwarecollector-master
-  namespace: 6fusion-system
+  namespace: 6fusion-vmware-collector
   labels:
     6fusion-app: vmwarecollector-master
 spec:
@@ -93,11 +93,11 @@ apiVersion: v1
 kind: ReplicationController
 metadata:
   name: 6fusion-vmwarecollector-metrics
-  namespace: 6fusion-system
+  namespace: 6fusion-vmware-collector
   labels:
     6fusion-app: vmwarecollector-metrics
 spec:
-  replicas: 3  # Set the amount of metrics collectors replicas (default 2)
+  replicas: 2
   selector:
     6fusion-app: vmwarecollector-metrics
   template:
