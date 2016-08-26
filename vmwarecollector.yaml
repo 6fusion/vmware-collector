@@ -72,27 +72,37 @@ apiVersion: v1
 kind: ReplicationController
 metadata:
   name: 6fusion-vmwarecollector-master
-  namespace: 6fusion-vmware-collector
+  namespace: 6fusion-vmware-collector5
   labels:
     6fusion-app: vmwarecollector-master
 spec:
-  containers:
-  - name: vmware-collector-inventory
-    image: 6fusion/vmware-collector # Docker image of the 6fusion VmWare Inventory Collector
-    volumeMounts:
-    - name: vsphere-secret
-      mountPath: /var/run/secrets/vmwarecollector/vsphere
-    - name: on-prem-secret
-      mountPath: /var/run/secrets/vmwarecollector/on-prem
-  - name: vmware-collector-mongodb
-    image: mongo:3.2
-  volumes:
-  - name: vsphere-secret
-    secret:
-      secretName: vsphere-secret
-  - name: on-prem-secret
-    secret:
-      secretName: on-prem-secret
+  replicas: 1
+  selector:
+    6fusion-app: vmwarecollector-master
+  template:
+    metadata:
+      name: 6fusion-vmwarecollector-master
+      labels:
+        6fusion-app: vmwarecollector-master
+    spec:
+      containers:
+      - name: vmware-collector-inventory
+        image: 6fusion/vmware-collector:alpha
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: vsphere-secret
+          mountPath: /var/run/secrets/vmwarecollector/vsphere
+        - name: on-prem-secret
+          mountPath: /var/run/secrets/vmwarecollector/on-prem
+      - name: vmware-collector-mongodb
+        image: mongo:3.2
+      volumes:
+      - name: vsphere-secret
+        secret:
+          secretName: vsphere-secret
+      - name: on-prem-secret
+        secret:
+          secretName: on-prem-secret
 ---
 apiVersion: v1
 kind: ReplicationController
