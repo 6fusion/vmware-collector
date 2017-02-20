@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: on-prem-secret
+  namespace: 6fusion-system
+data:
+  api-host: ae3beaf756a4611e6afb502259c09df1-10352529.us-west-1.elb.amazonaws.com
+  api-endpoint: 'api/v1'
+  organization-id: 776163-82f2511075b04b4aa2c31e7d5e2669e7
+  collector-version: dontcare
+  registration-date: 2016-08-23T00:00:00Z
+  machines-by-inv-timestamp: 500
+  inventoried-limit: 10000

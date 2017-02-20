@@ -18,7 +18,6 @@ class InventoryCollector
 
   def initialize(infrastructure)
     @version = ''
-    @initial_run = true
     @infrastructure = infrastructure
     @local_inventory = MachineInventory.new(infrastructure)
     @vsphere_session = VSphere::VSphereSession.new.session
@@ -74,8 +73,8 @@ class InventoryCollector
               # machine.cpu_speed_hz = @infrastructure.cpu_speed_for(machine.platform_id)
               machine.assign_fake_disk if machine.disks.empty?
               machine.assign_fake_nic if machine.nics.empty?
-              machine.tags << 'type: virtual machine'
-              machine.tags << 'platform: vmware'
+              machine.tags << 'type:virtual machine'
+              machine.tags << 'platform:VMware'
               if machine.record_status == 'incomplete'
                 if @local_inventory.key?(machine.platform_id)
                   previous_version = @local_inventory[machine.platform_id]
@@ -151,15 +150,16 @@ class InventoryCollector
       #   collected_machine.cpu_speed_hz = cpu_hz
       # end
 
+      # Set 'to_be_deleted' here to avoid overriding with record_status 'incomplete'
+      # Status of 'incomplete' will merge attributes from previous collection to avoid validation issues when submitting (ex. presence of name)
+      collected_machine.record_status = 'to_be_deleted' if ( collected_machine.status == 'deleted' )
+
       # Add all machines to local inventory before save
       @local_inventory[collected_machine.platform_id] = collected_machine
     end
 
     @local_inventory.save_a_copy_with_updates(time_to_query)
     logger.info "Recording inventory of #{@local_inventory.size} machines for #{@infrastructure.name} at #{time_to_query}"
-
-    @local_inventory.sync_missing if @initial_run
-    @initial_run = false
 
     logger.debug 'Generating vSphere session activity with currentTime request'
     VSphere.wrapped_vsphere_request { VSphere.session.serviceInstance.CurrentTime }

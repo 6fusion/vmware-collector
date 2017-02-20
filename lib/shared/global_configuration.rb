@@ -237,10 +237,10 @@ module GlobalConfiguration
 
     def load_secrets
       vsphere_secrets = %w(host password user debug ignore-ssl-errors)
-      on_prem_secrets = %w(api-host log-level oauth-endpoint api-endpoint organization-id api-scope collector-version \
-                           registration-date machines-by-inv-timestamp inventoried-limit proxy_host proxy_port proxy_user \
-                           proxy_password oauth_token refresh_token login_email login_password batch_size application_id \
-                           application_secret organization_name)
+      on_prem_secrets = %w(api-host log-level oauth-endpoint api-endpoint organization-id api-scope collector-version
+                           registration-date machines-by-inv-timestamp inventoried-limit proxy-host proxy-port proxy-user
+                           proxy-password oauth-token refresh-token login-email login-password batch-size application-id
+                           application-secret organization-name)
 
       store_secrets_for(vsphere_secrets, "vsphere")
       store_secrets_for(on_prem_secrets, "on-prem")
@@ -248,8 +248,11 @@ module GlobalConfiguration
 
     def store_secrets_for(keys, secret)
       keys.each do |name_in_file|
-        value = readfile("#{ENV['SECRETS_PATH']}/#{secret}/#{name_in_file}")
-        store("#{secret}_#{name_in_file}".gsub("-", "_").to_sym, human_to_machine(value)) if value.present?
+        path = "#{ENV['SECRETS_PATH']}/#{secret}/#{name_in_file}"
+        if File.exists?(path)
+          value = File.read("#{ENV['SECRETS_PATH']}/#{secret}/#{name_in_file}")
+          store("#{secret}_#{name_in_file}".gsub("-", "_").to_sym, human_to_machine(value.chomp))
+        end
       end
     end
 
@@ -321,8 +324,5 @@ module GlobalConfiguration
           port
     end
 
-    def readfile(filepath)
-      File.exist?(filepath) ? File.read(filepath).chomp.strip : ''
-    end
   end
 end

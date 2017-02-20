@@ -18,7 +18,7 @@ module Executables
         @on_prem_connector.submit
       rescue StandardError => e
         logger.fatal "Encountered unhandled exception: #{e.message}."
-        logger.debug e.backtrace
+        logger.debug e.backtrace.join("\n")
         @scheduler.shutdown
         exit(1)
       end

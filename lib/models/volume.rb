@@ -25,10 +25,10 @@ class Volume
 
   def api_format
     {name: name,
-     ssd: ssd,
+     ssd: ssd || false,
      storage_bytes: storage_bytes,
-     volume_type: :volume_type,
-     accessible: :accessible,
-     free_space: :free_space}
+     volume_type: volume_type,
+     accessible: accessible,
+     free_space: free_space }
   end
 end

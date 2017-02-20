@@ -91,7 +91,7 @@ module RbVmomiExtensions
               file_key = file_layout_ex_file_info.key
               updated_attributes[:disk_map][file_key][:size] = file_layout_ex_file_info.size }
           elsif ( cs.name =~ /memorySizeMB/ )
-            updated_attributes[cs.name.to_sym] = cs.val * 1024**2
+            updated_attributes[cs.name.to_sym] = cs.val ? (cs.val * 1024**2) : 0
           else
             # !! Todo: Why on updates, this doesn't pick up attrs like name? If can fix this, will avoid record_status "incomplete" when not actually incomplete
             updated_attributes[cs.name.to_sym] = cs.val

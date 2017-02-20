@@ -1,8 +1,8 @@
 module Executables
   class Inventory
-    def initialize(scheduler, job)
-      @scheduler = scheduler
-      @job = job
+    def initialize #(scheduler, job)
+      # @scheduler = scheduler
+      # @job = job
       @collector_hash = {}
     end
 
@@ -17,7 +17,7 @@ module Executables
       rescue StandardError => e
         logger.fatal "Encountered unhandled exception: #{e.message}."
         logger.debug e.backtrace
-        @scheduler.shutdown
+#        @scheduler.shutdown
         exit(1)
       end
       logger.info 'Shutting down inventory collector'
@@ -31,7 +31,7 @@ module Executables
       # this process (e.g., meter registration)
       inv_timestamps.each do |inv|
         if inv.persisted?
-          @job.unschedule
+#          @job.unschedule
         else
           inv.save
           collector_queue = active_collectors
@@ -43,7 +43,7 @@ module Executables
             inventory_threading(collector_queue, ctime, inv)
           end
         end
-      end
+      end if inv_timestamps
     end
 
     def inventory_threading(c_queue, current_time, inventoried_timestamp)

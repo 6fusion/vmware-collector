@@ -32,7 +32,6 @@ data:
   log-level: "BASE64_VALUE"                 # Defined level for showing elements in log (defaults to debug)
   api-endpoint: "BASE64_VALUE"              # Base API endpoint Defaults to /v1/api
   organization-id: "BASE64_VALUE"           # Organization ID on on-prem-api
-  collector-version: "BASE64_VALUE"         # Define Collector Version
   registration-date: "BASE64_VALUE"         # You need to set this value as the timestamp of the installation date
   machines-by-inv-timestamp: "BASE64_VALUE" # Define the total of machines that are included on each request to obtain metrics from vsphere
   inventoried-limit: "BASE64_VALUE"         # Define the limit of inventoried timestamps that each replica controller will take each round

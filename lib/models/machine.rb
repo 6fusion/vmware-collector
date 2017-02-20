@@ -136,8 +136,6 @@ class Machine
         logger.warn "#{vsphere_attr} is missing from the vSphere properties for machine: #{self.platform_id}"
       end
     end
-
-    self.record_status = 'to_be_deleted' if ( status == 'deleted' )
   end
 
   def assign_fake_disk
@@ -261,13 +259,11 @@ class Machine
   def submit_delete(machine_endpoint)
     logger.info "Deleting machine #{name} from OnPrem API"
     begin
-      response = hyper_client.delete(machine_endpoint)
-      # Possible bug fix by setting to deleted for 404
-      # Somehow machine was successfully deleted, but status wasn't changed
-      self.record_status = 'deleted' if (response.code == 204 || response.code == 404)
+      response = hyper_client.put(machine_endpoint, api_format)
+      self.record_status = 'deleted' if (response.code == 200 || response.code == 404)
     rescue StandardError => e
       logger.error "Error deleting machine '#{name} from OnPrem API"
-      logger.debug e
+      logger.debug e.backtrace.join("\n")
       raise e
     end
   end
@@ -289,9 +285,9 @@ class Machine
 
         self.record_status = 'verified_update'
       end
-    rescue
-      logger.error "Error updating machine '#{name} in OnPrem"
-      raise
+    rescue StandardError => e
+      logger.error "Error updating machine #{name} in API"
+      raise e
     end
 
     self

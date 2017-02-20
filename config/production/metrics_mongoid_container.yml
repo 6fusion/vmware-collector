@@ -3,5 +3,5 @@ production:
     default:
       database: 6fusion_meter
       hosts:
-        <%= ENV.has_key?('VMWARECOLLECTOR_MASTER_PORT_27017_TCP_ADDR') and ENV.has_key?('VMWARECOLLECTOR_MASTER_PORT_27017_TCP_PORT') ? "- #{ENV['VMWARECOLLECTOR_MASTER_PORT_27017_TCP_ADDR']}:#{ENV['VMWARECOLLECTOR_MASTER_PORT_27017_TCP_PORT']}" : '- localhost:27017' %>
+        - <%= "#{ENV['VMWARECOLLECTOR_MASTER_SERVICE_HOST']}:#{ENV['VMWARECOLLECTOR_MASTER_SERVICE_PORT']}" %>
       log_level: info

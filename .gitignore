@@ -15,3 +15,4 @@ admin_console_app/public/assets
 oem/core
 oem/core.pub
 secrets/
+ssl/

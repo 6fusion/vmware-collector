@@ -309,7 +309,7 @@ class OnPremConnector
       if deleted_machine.record_status == 'deleted'
         deleted_machine.save # Update status in mongo
       else
-        logger.error "Error deleting machine: Database ID:#{submitted_machine.id}, Platform ID:#{submitted_machine.platform_id}"
+        logger.error "Error deleting machine: Database ID:#{deleted_machine.id}, Platform ID:#{deleted_machine.platform_id}"
       end
     end
   end

@@ -42,7 +42,7 @@ class CollectorRegistration
         session = VSphere.session
         if session.serviceInstance.content.rootFolder
           if MetricsCollector.level_3_statistics_enabled?
-            logger.info 'Succesful connected to vsphere'
+            logger.info 'Successfully connected to vsphere'
             @configuration[:verified_vsphere_connection] = true
           else
             logger.error 'vSphere level 3 statistics must be enabled at the 5-minute interval'

@@ -10,7 +10,7 @@ class InfrastructureCollector
   using RbVmomiExtensions
 
   MEGABIT_TO_BIT = 1_000_000
-  BASIC_INFRASTRUCTURE_FIELDS = [:name, :platform_id, :tags]
+  BASIC_INFRASTRUCTURE_FIELDS = [:name, :platform_id]
   BASIC_HOST_FIELDS = [:platform_id, :uuid, :name, :cluster, :cluster_platform_id, :cpu_hz, :cpu_model,
     :cpu_cores, :sockets, :threads, :cpus, :memory, :vendor, :model, :os,
     :os_version, :os_vendor, :inventory]
@@ -99,7 +99,6 @@ class InfrastructureCollector
         properties.delete(:hostFolder)
         properties.delete(:network)
         properties.delete(:datastores) # Datastores from vSphere are referred to as 'volumes' in our domain
-        properties[:tags] = 'vmware-collector'
         @local_inventory[platform_id] = updated_infrastructure(properties)
       end
       @local_inventory.save

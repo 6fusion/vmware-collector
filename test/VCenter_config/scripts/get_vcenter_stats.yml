@@ -1,0 +1,14 @@
+:vspheres:
+  :vs0:
+    :name: VSphere_55
+    :access:
+        :address: vcsa01-vsphere55envrionme-stnhl3zt.srv.ravcloud.com
+        :user: bsteinbeiser@vsphere.local
+        :password: 8i9o*I(O
+    :datacenters:
+        :dc0:
+            :name: vsphere_5_5_datacenter_01
+            :vms:
+            - VS55_centos-test-01
+            - VS55_centos-test-02
+            - VS55_centos_clone
