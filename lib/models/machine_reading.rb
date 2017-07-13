@@ -2,23 +2,19 @@
 require 'hyper_client'
 require 'json'
 require 'local_inventory'
+
 class MachineReading
   include Mongoid::Document
   include Mongoid::Attributes::Dynamic
-  include Logging
 
   def api_format
-    local_platform_remote_id_inventory = PlatformRemoteIdInventory.new
-    infrastructure_prid = local_platform_remote_id_inventory["i:#{id[:infrastructure_platform_id]}"]
-    machine_prid = local_platform_remote_id_inventory["#{infrastructure_prid.platform_key}/m:#{id[:machine_platform_id]}"]
     samples = []
     readings.each do |reading|
       disks_info = []
       nics_info = []
       if reading[:disk_metrics].present?
         disks_info = reading[:disk_metrics].map do |dm|
-          next unless local_platform_remote_id_inventory["#{machine_prid.platform_key}/d:#{dm['platform_id']}"]
-          {id: local_platform_remote_id_inventory["#{machine_prid.platform_key}/d:#{dm['platform_id']}"].remote_id,
+          {id: dm[:custom_id],
            usage_bytes: dm[:usage_bytes],
            read_bytes_per_second: (dm[:read_kilobytes] * 1000),
            write_bytes_per_second: (dm[:write_kilobytes] * 1000)}
@@ -26,8 +22,7 @@ class MachineReading
       end
       if reading[:nic_metrics].present?
         nics_info = reading[:nic_metrics].map do |nm|
-          next unless local_platform_remote_id_inventory["#{machine_prid.platform_key}/n:#{nm['platform_id']}"]
-          {id: local_platform_remote_id_inventory["#{machine_prid.platform_key}/n:#{nm['platform_id']}"].remote_id,
+          {id: nm[:custom_id],
            receive_bytes_per_second: (nm[:receive_kilobits] * 125),
            transmit_bytes_per_second: (nm[:transmit_kilobits] * 125)}
         end.compact
@@ -41,24 +36,24 @@ class MachineReading
     samples
   end
 
-  def post_to_api(reading_endpoint)
+  def post_to_api
     status = 'submitted'
     begin
-      response = hyper_client.post(reading_endpoint, api_format)
+      response = hyper_client.post_samples(id['machine_custom_id'], api_format)
     rescue RestClient::UnprocessableEntity, RestClient::Conflict => e
       # 422 UnprocessableEntity is currently returned if a reading already exists, in OnPrem, for a given timestamp
       # If we get a badrequest returned, might as well mark it submitted and move on, as there's no way it will ever stop being a bad request
       status = 'submitted_conflict'
-      logger.warn "#{e.message} returned when posting to #{reading_endpoint}."
-      logger.info JSON.parse(e.response)['message']
-      logger.debug @metrics
-      logger.debug e
+      $logger.warn "#{e.message} returned when posting samples."
+      $logger.info JSON.parse(e.response)['message']
+      $logger.debug @metrics
+      $logger.debug e
     rescue RestClient::BadRequest => e
       status = 'submitted_bad_request'
-      logger.error "#{e.message} returned when posting to #{reading_endpoint}."
-      logger.error JSON.parse(e.response)['message']
-      logger.debug @metrics
-      logger.debug e
+      $logger.error "#{e.message} returned when posting samples."
+      $logger.error JSON.parse(e.response)['message']
+      $logger.debug @metrics
+      $logger.debug e
     end
 
     # Iterate over the *aggregated* readings, convert them to proper reading docs, and update them as appropriate
@@ -75,8 +70,8 @@ class MachineReading
         reading.submitted_at = Time.now.utc
         reading.save
       rescue Mongoid::Errors::DocumentNotFound => e
-        logger.warn "Unable to update reading submited_at timestamp for machine #{r[:machine_platform_id]}@#{r[:infrastructure_platform_id]} for time #{r[:end_time]}"
-        logger.warn e.message
+        $logger.warn "Unable to update reading submited_at timestamp for machine #{r[:machine_custom_id]} for time #{r[:end_time]}"
+        $logger.warn e.message
       end
     end
   end

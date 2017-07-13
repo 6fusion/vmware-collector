@@ -1,5 +1,3 @@
-require 'global_configuration'
-require 'mongo_connection'
 require 'infrastructure_collector'
 require 'interval_time'
 require 'inventoried_timestamp'
@@ -16,6 +14,7 @@ using IntervalTime
 namespace :collect do
 
   desc "Collect infrastructures (datacenters) from vSphere"
+
   task :infrastructures do
     InfrastructureCollector.new.run
   end
@@ -57,21 +56,6 @@ namespace :collect do
 
   task :all => [:infrastructures, :inventory, :metrics]
 
-  desc "Initialize mongo connection"
-  task :init_mongo do
-    include MongoConnection
-    include GlobalConfiguration
-    initialize_mongo_connection
-  end
-
-  task :inventory => :init_mongo
-  task :infrastructures => :init_mongo
-  task :all => :init_mongo
-  task :show => :init_mongo
-  task :metrics => :init_mongo
-  task :reset => :init_mongo
-
-
   namespace :reset do
     desc "Clear out collected infrastructures"
     task :infrastructure do
@@ -91,9 +75,6 @@ namespace :collect do
       PlatformRemoteId.delete_all
     end
     task :all => [:infrastructure, :inventory, :metrics, :prid ]
-    task :inventory => :init_mongo
-    task :infrastructures => :init_mongo
-    task :metrics => :init_mongo
 
   end
   desc "Clear out all collected collections"

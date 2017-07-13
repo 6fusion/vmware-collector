@@ -1,20 +1,15 @@
 require 'timeout'
 
-require 'global_configuration'
 require 'inventoried_timestamp'
 require 'local_inventory'
-require 'logging'
 require 'machine'
 require 'rbvmomi_extensions'
 require 'vsphere_session'
-require 'objspace'
 
 class InventoryCollector
-  include GlobalConfiguration
-  include Logging
   using RbVmomiExtensions
 
-  attr_reader :infrastructure
+  attr_reader :infrastructure #? wtf
 
   def initialize(infrastructure)
     @version = ''
@@ -22,35 +17,62 @@ class InventoryCollector
     @local_inventory = MachineInventory.new(infrastructure)
     @vsphere_session = VSphere::VSphereSession.new.session
 
-    @data_center = @vsphere_session.rootFolder.childEntity.grep(RbVmomi::VIM::Datacenter).find { |dc| dc.name == infrastructure.name }
+
+    @data_center = @vsphere_session.rootFolder.childEntity.grep(RbVmomi::VIM::Datacenter).find { |dc| dc.moref == infrastructure.platform_id }
     # Note: rbvmomi's find_datacenter method must be avoided as it can require excessive privileges due to search index utilization
 
     # Currently the app does not support datacenter deletions, not even how to detect if they were deleted
     # so we added a validation @data_center.present? && @data_center.vmFolder.present?
     VSphere.wrapped_vsphere_request do
       @vsphere_session.propertyCollector.CreateFilter(spec: InventoryCollector.vm_filter_spec(
-          InventoryCollector.vm_properties, @data_center.vmFolder
-      ),
+                                                        InventoryCollector.vm_properties, @data_center.vmFolder),
                                                       partialUpdates: false)
     end if @data_center.present? && @data_center.vmFolder.present?
     # These two maps are needed to get cpu_speed_hz from Hosts for Machines
     @hosts_cpu_hz_map = {}
     @vm_hosts_map = {}
-    logger.debug "Initializing machine inventory collector for #{infrastructure.name}"
+    $logger.debug "Initializing machine inventory collector for #{infrastructure.name}"
   end
 
   def run(time_to_query)
-    logger.info "Collecting inventory for #{@infrastructure.name} at #{time_to_query}"
+    $logger.info "Collecting inventory for #{@infrastructure.platform_id} at #{time_to_query}"
     results = VSphere.wrapped_vsphere_request do
       @vsphere_session.propertyCollector.WaitForUpdatesEx(version: @version,
                                                           options: {maxWaitSeconds: 0})
     end
     collected_machines = []
+    vm_folders = {}
+    vm_resource_pools = {}
+    vm_vapps = {}
+    vm_clusters = {}
+
     while results
       results.filterSet.each do |fs|
         # Collect host cpu_hz from HostSystem objects, then get correct value for each VM by host moref
         fs.objectSet.each do |os|
           begin
+
+            if os.obj.is_a?(RbVmomi::VIM::ComputeResource)
+              binding.pry
+            end
+
+
+            if os.obj.is_a?(RbVmomi::VIM::ResourcePool)
+              if os.obj.is_a?(RbVmomi::VIM::VirtualApp)
+                name = os.obj.name
+                os.obj.vm.each{|vm|
+                  vm_vapps[vm.moref] = name }
+              else
+                binding.pry
+              end
+            end
+
+            if os.obj.is_a?(RbVmomi::VIM::Folder)
+              folder_name = os.obj.name
+              os.obj.childEntity.select{|child| child.is_a?(RbVmomi::VIM::VirtualMachine)}.each {|vm|
+                vm_folders[vm.moref] = folder_name }
+            end
+
             if os.obj.is_a?(RbVmomi::VIM::HostSystem)
               # Host cpu_hz map, before save use to associate cpu_hz with vm/machine
               host_cpu_speed_change_set = os.changeSet.first
@@ -65,35 +87,43 @@ class InventoryCollector
               end
 
               machine = Machine.build_from_vsphere_vm(os.machine_properties)
-              machine.infrastructure_platform_id = @infrastructure.platform_id
-              machine.infrastructure_remote_id = @infrastructure.remote_id
+              $logger.debug "Processing update: #{machine.name}/#{machine.platform_id} for infrastructure #{@infrastructure.platform_id}"
 
+              # If we don't already know the
+              unless vm_clusters[os.moref] # and vm_resource_pools[]  # FIXME ensure this is always 1:1, and checking 1 covers both
+                resource_pool = os.obj.resourcePool
+                ccr = resource_pool.owner.name
+                rp = resource_pool.name
+                resource_pool.vm.each{|vm|
+                  vm_resource_pools[vm.moref] = rp
+                  vm_clusters[vm.moref] = ccr }
+              end
+
+              machine.tags += ["datacenter:#{@infrastructure.platform_id}", "clusterComputeResource:#{vm_clusters[os.moref]}", "resourcePool:#{vm_resource_pools[os.moref]}"]
+
+              machine.infrastructure_platform_id = @infrastructure.platform_id
+              machine.infrastructure_custom_id = @infrastructure.custom_id
               machine.inventory_at = time_to_query
 
-              # machine.cpu_speed_hz = @infrastructure.cpu_speed_for(machine.platform_id)
-              machine.assign_fake_disk if machine.disks.empty?
-              machine.assign_fake_nic if machine.nics.empty?
-              machine.tags << 'type:virtual machine'
-              machine.tags << 'platform:VMware'
+              if (machine.name.nil? or machine.name.empty?)
+                $logger.debug "Machine with no name: #{machine.inspect}"
+              end
+              if (machine.infrastructure_platform_id.nil? or machine.infrastructure_platform_id.blank?)
+                $logger.debug "machine with no IPI: #{machine.inspect} (#{@infrastructure.inspect})"
+              end
+
               if machine.record_status == 'incomplete'
+                $logger.debug "Incomplete machine update: #{machine}"
                 if @local_inventory.key?(machine.platform_id)
                   previous_version = @local_inventory[machine.platform_id]
 
                   machine.merge(previous_version) # Fill in the missing attributes for this incomplete with previous
 
-                  # The 2 reasons for using the previous version's disks/nics are:
-                  # 1. API requires nics/disks for machine updates (this needs to be fixed)
-                  # 2. Machines occasionally migrate, which leads to some empty properties
-                  # Should look into if possible to get full information from migrated machine data
-                  # Also, API updates to not require at least 1 disk/nic will eliminate need for fakes
-
-                  # If a machine has any fake nic, it may be during a migration -- so the machine actually has disks/nics
-                  # So, safer to just use previous
-                  machine.disks = previous_version.disks if machine.disks.select { |d| d.name == 'fake' }.any?
-                  machine.nics = previous_version.nics if machine.nics.select { |n| n.name == 'fake' }.any?
+                  # during migrations, disks and nics are often missing from the change set, so we just put the disks/nics from our previous save onto this instance
+                  machine.disks = previous_version.disks if machine.disks.empty?
+                  machine.nics = previous_version.nics if machine.nics.empty?
 
                   collected_machines << machine
-                  # @local_inventory[machine.platform_id] = machine
 
                   # If a machine is incomplete, but not poweredOff, it's probably migrating. If so,
                   #  we just ignore the update (which will in turn use the previous record for this machine)
@@ -113,13 +143,13 @@ class InventoryCollector
             end
 
           rescue RbVmomi::Fault => e
-            logger.error e.message
-            logger.debug e.class
-            logger.debug e.backtrace.join("\n")
+            $logger.error e.message
+            $logger.debug e.class
+            $logger.debug e.backtrace.join("\n")
 
             if e.fault.is_a?(RbVmomi::VIM::ManagedObjectNotFound)
               if @local_inventory[os.moref].present?
-                logger.info "Deleting machine from inventory with moref: #{os.moref}"
+                $logger.info "Deleting machine from inventory with moref: #{os.moref}"
                 @local_inventory[os.moref].update_attribute(:status, 'deleted') # !! Get a better status  #!! overwrites "current" time #!! batch?
               end
             else
@@ -145,10 +175,9 @@ class InventoryCollector
       # So use the default unless cpu_hz is greater than 0
 
       collected_machine.cpu_speed_hz = cpu_hz.present? && cpu_hz > 0 ? cpu_hz : 1
-      # if cpu_hz && cpu_hz > 0 # Commented all fo this as now there is not cpu_speed_mhz, as on prem only has cpu_speed_hz
-      #   cpu_mhz = cpu_hz / 1_000_000
-      #   collected_machine.cpu_speed_hz = cpu_hz
-      # end
+
+      collected_machine.tags += ["folder:#{vm_folders[collected_machine.platform_id]}"] if vm_folders[collected_machine.platform_id]
+      collected_machine.tags += ["vApp:#{vm_vapps[collected_machine.platform_id]}"] if vm_vapps[collected_machine.platform_id]
 
       # Set 'to_be_deleted' here to avoid overriding with record_status 'incomplete'
       # Status of 'incomplete' will merge attributes from previous collection to avoid validation issues when submitting (ex. presence of name)
@@ -159,9 +188,9 @@ class InventoryCollector
     end
 
     @local_inventory.save_a_copy_with_updates(time_to_query)
-    logger.info "Recording inventory of #{@local_inventory.size} machines for #{@infrastructure.name} at #{time_to_query}"
+    $logger.info "Recording inventory of #{@local_inventory.size} machines for #{@infrastructure.name} at #{time_to_query}"
 
-    logger.debug 'Generating vSphere session activity with currentTime request'
+    $logger.debug 'Generating vSphere session activity with currentTime request'
     VSphere.wrapped_vsphere_request { VSphere.session.serviceInstance.CurrentTime }
   end
 
@@ -188,19 +217,19 @@ class InventoryCollector
 
   def self.vm_properties
     [ # Machine Attributes
-        'name',
-        'config.guestFullName', # !! This is throwing property error
-        #      'config.instanceUuid',
-        'summary.config.numCpu',
-        'summary.config.memorySizeMB',
-        'summary.runtime.powerState',
-        'runtime.host',
-        # -- Disks
-        'config.hardware.device',
-        'layoutEx.disk',
-        'layoutEx.file',
-        # -- Nics
-        'guest.net'
+      'name',
+      'config.guestFullName', # !! This is throwing property error
+      'config.instanceUuid',
+      'summary.config.numCpu',
+      'summary.config.memorySizeMB',
+      'summary.runtime.powerState',
+      'runtime.host',
+      # -- Disks
+      'config.hardware.device',
+      'layoutEx.disk',
+      'layoutEx.file',
+      # -- Nics
+      'guest.net'
     ]
   end
 
@@ -221,9 +250,19 @@ class InventoryCollector
         name: 'foo', type: 'VirtualMachine', path: 'runtime.host', skip: false
     )
 
+    find_resource_pools = RbVmomi::VIM.TraversalSpec(
+      name: 'visitResourcePools', type: 'ResourcePool', path: 'vm', skip: false,
+      selectSet: [recurse_folders]
+    )
+
+    find_clusters = RbVmomi::VIM.TraversalSpec(
+      name: 'visitClusters', type: 'ClusterComputeResource', path: 'resourcePool', skip: false,
+      selectSet: [recurse_folders]
+    )
+
     find_folders = RbVmomi::VIM.TraversalSpec(
         name: 'ParentFolder', type: 'Folder', path: 'childEntity', skip: false,
-        selectSet: [recurse_folders, find_vapps, find_machines, find_vm_hosts]
+        selectSet: [recurse_folders, find_vapps, find_machines, find_vm_hosts, find_resource_pools]
     )
 
     RbVmomi::VIM.PropertyFilterSpec(
@@ -231,24 +270,14 @@ class InventoryCollector
         obj: root_folder,
         selectSet: [
           find_folders,
-          # RbVmomi::VIM.TraversalSpec(
-          #   name: 'tsDatacenterVMFolder',
-          #   type: 'Datacenter',
-          #   path: 'vmFolder',
-          #   skip: true,
-          #   selectSet: [ RbVmomi::VIM.SelectionSpec(name: 'tsFolder') ] ),
-          # RbVmomi::VIM.TraversalSpec(
-          #   name: 'tsFolder',
-          #   type: 'Folder',
-          #   path: 'childEntity',
-          #   skip: false,
-          #   selectSet: [
-          #     RbVmomi::VIM.SelectionSpec(name: 'tsDatacenterVMFolder')] )
         ]
       ],
       propSet: [
         { type: 'VirtualMachine', pathSet: properties },
-        { type: 'HostSystem', pathSet: ['hardware.cpuInfo.hz'] }
+        { type: 'HostSystem', pathSet: ['hardware.cpuInfo.hz'] },
+        { type: 'Folder', pathSet: ['name', 'childEntity'] },
+        { type: 'ResourcePool', pathSet: ['vm'] },
+        { type: 'ClusterComputeResource', pathSet: ['resourcePool'] }
       ]
     )
   end

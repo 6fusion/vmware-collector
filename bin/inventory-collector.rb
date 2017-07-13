@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby -W0
+require 'set'
 
 # load all required files
 require './config/default_includes'
@@ -10,45 +11,43 @@ require_relative 'executables/api_sync'
 require_relative 'executables/missing_readings'
 require_relative 'executables/missing_readings_cleaner'
 
-init_configuration
 
-logger.debug "Syncronization complete"
+Mongoid.load!('config/mongoid.yml', :default)
+STDOUT.sync = true
+$logger = Logger.new(STDOUT)
+$logger.level = ENV['LOG_LEVEL'] || Logger::DEBUG
 
-unless VmwareConfiguration.first and VmwareConfiguration.first.configured
-  logger.info 'Inventory collector has not been configured. Please configure using the registration wizard.'
-  exit(0)
+begin
+  Mongoid::Tasks::Database::create_indexes
+rescue
+  # indexes may already exist
 end
 
-scheduler_30s = Rufus::Scheduler.new(max_work_threads: 1)
+scheduler_1m = Rufus::Scheduler.new(max_work_threads: 1)
 scheduler_5m = Rufus::Scheduler.new(max_work_threads: 1)
-scheduler_15m = Rufus::Scheduler.new(max_work_threads: 1)
-scheduler_30m = Rufus::Scheduler.new(max_work_threads: 1)
 
-logger.info 'API syncronization scheduled to run every 30 seconds'
-scheduler_30s.every '30s' do
-  processSignals
-  Executables::ApiSync.new(scheduler_30s).execute
+$logger.info 'API syncronization scheduled to run every minute'
+on_prem_connector = OnPremConnector.new
+scheduler_1m.every '1m' do
+  on_prem_connector.submit
 end
 
-logger.info 'Inventory and Infrastructure scheduled to run every 5 minutes'
-
-hak = Executables::Inventory.new
+$logger.info 'Inventory and Infrastructure scheduled to run every 5 minutes'
+inventory_collectors = Hash.new
+infrastructure_collector = InfrastructureCollector.new
 scheduler_5m.cron '*/5 * * * *' do |job|
-  processSignals
-  hak.execute
-  Executables::Infrastructure.new(scheduler_5m).execute
+  collection_time = Time.now.change(sec: 0)
+
+  infrastructure_collector.run
+  Infrastructure.each{|inf|
+    inventory_collectors[inf.platform_id] ||= InventoryCollector.new(inf) }
+
+  inventory_collectors.each_value{|collector|
+    collector.run(collection_time)}
+  # TODO may want to move this above collection with different status; if we crash during a run and find_or_initailize_by (cf vmware meter)
+  #  we could blow away that inventory and re-collect
+  InventoriedTimestamp.create(inventory_at: collection_time, record_status: 'inventoried')
+
 end
 
-logger.info 'Metrics missing locked cleaning process scheduled to run every 15 minutes'
-scheduler_15m.every '15m' do
-  processSignals
-  Executables::MissingReadingsCleaner.new(scheduler_15m).execute
-end
-
-logger.info 'Metrics missing readings scheduled to run every 30 minutes'
-scheduler_30m.every '30m' do
-  processSignals
-  Executables::MissingReadings.new(scheduler_30m).execute
-end
-
-[scheduler_30s, scheduler_5m, scheduler_15m, scheduler_30m].map(&:join)
+[scheduler_1m, scheduler_5m].map(&:join)

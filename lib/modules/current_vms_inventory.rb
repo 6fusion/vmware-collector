@@ -20,7 +20,7 @@ module CurrentVmsInventory
     if inventoried_timestamps.empty?
       return_array_of_inv_timestamps(current_time, retrieve_working_machines_morefs)
     else
-      pending_inventory = retrieve_working_machines_morefs - (inventoried_timestamps.map &:machine_inventory).flatten 
+      pending_inventory = retrieve_working_machines_morefs - (inventoried_timestamps.map(&:machine_inventory)).flatten
       return_array_of_inv_timestamps(current_time, pending_inventory) if !pending_inventory.empty?
     end
   end
@@ -36,31 +36,21 @@ module CurrentVmsInventory
     if inventoried_timestamps.empty?
       InventoriedTimestamp.create(inventory_at: current_time, machine_inventory: retrieve_working_machines_morefs)
     else
-      pending_inventory = retrieve_working_machines_morefs - (inventoried_timestamps.map &:machine_inventory).flatten
+      pending_inventory = retrieve_working_machines_morefs - (inventoried_timestamps.map(&:machine_inventory)).flatten
       InventoriedTimestamp.create(inventory_at: current_time, machine_inventory: pending_inventory) if !pending_inventory.empty?
-    end
-  end
-
-  def retrieve_container_name
-    stdout, stderr, status = Open3.capture3('hostname -f')
-    stdout = stdout.chomp.strip
-    if !stdout.empty? && stderr.empty?
-      return stdout
-    else
-      raise 'Could not get the hostname of the current running container'
     end
   end
 
   def inventoried_timestamp_unlocked?(inv_timestamp)
     not inv_timestamp.locked ||
-    (inv_timestamp.locked && inv_timestamp.locked_by == @container_name)
+    (inv_timestamp.locked && inv_timestamp.locked_by == ENV['HOSTNAME'])
   end
 
   def inventoried_timestamp_free_to_meter?(inv_timestamp)
     inv_timestamp.reload
     inv_timestamp.locked &&
-    inv_timestamp.locked_by == @container_name &&
-    inv_timestamp.record_status == 'queued_for_metering'
+      (inv_timestamp.locked_by == ENV['HOSTNAME']) &&
+       inv_timestamp.record_status == 'queued_for_metering'
   end
 
   def inventoried_timestamps_to_be_metered(container)

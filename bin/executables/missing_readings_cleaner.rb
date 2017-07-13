@@ -6,19 +6,19 @@ module Executables
     end
 
     def execute
-      logger.info 'Executing cleanning process'
+      $logger.info 'Executing cleanning process'
 
       begin
-        start_time = Time.now
+        # start_time = Time.now
         @missing_readings_handler.unlock_old_inventory_timestamps
       rescue StandardError => e
-        logger.fatal "Encountered unhandled exception: #{e.message}."
-        logger.debug e.backtrace
+        $logger.fatal "Encountered unhandled exception: #{e.message}."
+        $logger.debug e.backtrace
         @scheduler.shutdown
         exit(1)
       end
 
-      logger.info 'Shutting down cleannig process'
+      $logger.info 'Shutting down cleannig process'
     end
   end
 end

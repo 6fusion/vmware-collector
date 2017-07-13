@@ -1,7 +1,0 @@
-production:
-  sessions:
-    default:
-      database: 6fusion_meter
-      hosts:
-        - <%= "#{ENV['VMWARECOLLECTOR_MASTER_SERVICE_HOST']}:#{ENV['VMWARECOLLECTOR_MASTER_SERVICE_PORT']}" %>
-      log_level: info

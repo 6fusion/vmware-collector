@@ -1,0 +1,289 @@
+# This Kubernetes yaml takes care of providing the services the collector relies on:
+#  Meter API Stack: PostgreSQL, CouchDB, full Meter API pod
+#  MongoDB
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: 6fusion-meter
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: meter-api-ssl-secret
+  namespace: 6fusion-meter
+data:
+  sslkey: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlKS2dJQkFBS0NBZ0VBMTVqWmtFOC9UcHh6RlhBY05YS0xncG1leVBnV3BwL3N1NkR2OTFpOEdYaFczRmlKCldKMCtPVi9KN1hmZVEvWS8wWE1JWDFvNm1lblV3ZXlCM05UaGkzL2xwNEltZWNSM1RuK2V4R0RQbnNnRHhLSDUKVWtlR1hiSGwwTVhMT3hDZWRxWUdRTlY1R3FHTnJVOVNVQUNmWTNTRHR3YzM1Z0VhR0xFTmNjSzQrREc0NW15SApGK2NLelhrQ0JmVjRpQUljNTgrTmlsYWVLWnVEZHBNOEgrZDU1Z051dnhYNENDU0NqcmxzRUJLNkJPT2dYalowCjF4bDZRYTRZYnpSQkFNV0c1Z2dVdTIwM015dEI4RUdPZ3lQb3BOR09INjlkaTF4SHRkci8xUVVPQisxYm1INFIKTWJqTkxGS3h2L1FGY2VhL0JqR0M1UnVkRlJHQTRPZFJMUGY0UEpFYnZ6alZJa0JmWWtPTE1UUms2QzlJaUdxcApERzBreUluelA5M2ttWXRvUk11KzdGTDBqMFg4d0Y4VzI4QmhNeDR3K3RXQ25qVVBJaGlzSXFYS04zc0YwMFZCCjZGOWYvQ3ZFaG1BZEhNVHBnVGQ3MHpyR2J6TWg1L2hnS0ovcm5vNUo0U21IVlVILzg3MEd3b2s2Kzg0V1ZCajIKWjAxeW53c3c1amRlVVNObU1aQVVOOGg2eVZtL2lHVTJkUFdFa3pzL2lpaGpvTW4yUHFiZ2ZnWDRkbDhydno4RAorUmZaQ0lERVNLQ0lZQmw0NGE4L2h0QXAwTlVzaDVuaEIyZG9RMVNCRG5xK1hPaFc1TG5RSmhaaVJmVDZLUW5JCm5xWkRNbGs3b1dyTlhjZmFLd0IvMFhwSEhkMUoyMTMxbTZkaVArTDR0ZFhqbnNLSHJpSktyakRxYS9FQ0F3RUEKQVFLQ0FnRUFpY0p0SWp6QTR1WXMwd0h6eEdNUXFiNm5LeHI2dmpWcCt1bjI2MEdUejJLSmZmcEVxSTZ3OTlBeApJcjk1RWt3Q3N6NmhsdXY4amVSUHdpbnhRTDMxOEVFazZVZk1kZm9Ia2UwUjhjRTZhT2E5SWFPdHY5bGNEZnBpCk1taHdWNmxpMThWMk1XODJGc0lyMlJYYUxxeDNMQUdET0N3d2w1TVVyYnBVTU9DUGVHZXRFZTgrMHhNYVgvaDIKUm9CM0o5RFJ6MzFibjQyQk9tellMNmdjdnZZVmVkZXZxQUhObnNaVmRnVWMrNWc3ckd3V1NKemJRNlpQN0MvbQpCUWlLa0llbWpzMlRFYi9UaWFxV1U0SlFJWk9NVCtSbXYvQTZBWlpSYSs0bmttSE1lVnc5THM4L0JWcGtIM0luCmlkUE90dDBPS2xMd3BKeGtYdFgwVjhEMnFaazR6NjVRZFJxQ3I3YjIvWWtNZlJZdE5OeWRldUdpQk5uM1RXR0QKeTNkL3J6UmswRG9pbVJQdmszQjRlV3lQYVpFNlBFdW1PNHJ1TGExYjFIeDVmR21RakxnaWg4dThRSS9MUDJIegpMOVBCZVBQUjNBM1dNNHBRallMS2g5TU02U1BzSE42TUk5Nm9YNk1vRjVRS2s1cE45S0lndzBnV0wzRjRTTkNsCmF0b0RsTXU5NW1VK1Z2Y3J0SFV4SmFjSzBMSG40UXVwMThmWmFMNTJuSE1uOTV0aVA1VlM1R1AzVUkyQWpxUkcKQ09uN3ZOU2RWMXpPb01iUVRXUi9ySmVvbFYvSUdNdWdaRDhXQVVNOXplQ0xZWXNvWkppSjc2UnNuRVFDYmlSeAp5WDJ1UVF0SWc5aHY4UXJOT0JCY00zcmFDTTgxSVRGTVd3Nm1LaG5CRmpKVTdBNzJNdEVDZ2dFQkFPOU9kUzlPCmdyM0pXc0lkcE1OWE9wK1Fuci9EM285SEZDOFZ1OFBTcWEraVRoN0Z1azBkY0dQc3VTbzZkWThQM2ZZUlV2Uk8KR2F5MjltZjZRb0UyTFluVmx1b1ZQWHdmUXpiUXR4UzY3NUtPMGFJS1pkZ1VmSENSaG5qOGhwdGc2L3d1bE9MKwpLSnlTNVB4QmZZYmk4WFdiS3pXL0dGd3hodE5GTjhtSFJHTm1GQlQ0cnhCNXlGRjZCSW5vRGpBcDJhamJuYkxrCmRiSFhGUVNrbUR0ZEFrWEJEZDJyeExjajZoS0NNZmQ0TTk5ZENJWmRCTXVGbzRhN3ROT3lOWndwd2swcktXQ0cKbjg4eW9XTGYzVVhYcjl3TXFacmdYWHFZRWZUUkx5VUJIaFMyeTA5K3A4R3IrVmtYdHNvcDZGQVd6Z2FpOTNlTgpGMERIeGhJNGpOUnA4ZGNDZ2dFQkFPYWkvU05zVEVMeFFzM2hhMFJRaWV3S0I0NEN0QkRORGxBbHl5UitCeHpxCmx6Rkw3TnFVSmJTSUNGbDJVWmxrT2NIM3A4WllWbjE2WG8wSHMxLytXTjlxWXNJWTlOdXlyZDlMcnZsUGtEbGEKNkI4Tk5ib2RVcmZhYnZZdGx4dEdpcklpVTEvUm83WWhFS0tWRE5XN1dlUW1JS1JEd2dWaGdXa0NSM1hZaGphQwpKTmkxcjNlL3lpMnN6KzNqUmhqYnZ3RFQyV0FMUi8rbDUvZGFVeXlnNmJKME1kYnhDSm9FMWRNQVFOM04vRDl0CklYUmNCOFNkeXg5RG1sRGZ1MUc2TzhFc0ZMRUJxNjRSS0laTDhrN3RobmRUYXRxTVo0SmpKZFBsN0VYTXBkc0oKUTE1dGRQaWNUSU1ZQnlRN0x6ek0wdXpDQzJDblVXUjc4NVZ4bEs3ZTUzY0NnZ0VCQU0xaVlmTGJDQnpJenNzaApWQUtQUC9JbzFnYXhuYmNNZ3djeU9QZUZPenRSS29rQW5MZUlsNmc3U0dRMHppYWRzSnQ3SE40dWxaeUZYdys0Cld4RzRwUGJTU1BiWWllK1lpVUJuZTJvZ1VuTlBmaDM3bkpNS2FnN1c1em01U2ZIYkNrNWkwRWZOYUorUTkxU0YKQks0YTRxOVVJSTY5VnJQeGtjeUxjS2pYSGx2TkJWbEdZa0hhczVFeUR1a3BMOXdvWHZXc256a2xHTm9zUlk2NQprU29KMW1SMW4yZnIveVpMZlo2cS9TVnVsZDZUWXppbVp2SWgzVXBLbVpURE0zMjIzVnNMdXpScjlvYUc1cm9NCmRrVjJLeW5KK0ZyRFM1ZG5JcW9pU3JzUXJYZUx0d3lnSUd4NUk4VlNOQUJvWFVrM2VWVjYwcmRaY1dhWXpxZGUKdjRlaThmc0NnZ0VCQUtwZnl2b0kvWWtTS3BSbUtsUnIzb2NFbmJJVll5bHFJV0dwbVpoYWxTeVNTNkE2QXowdwo1VzJvYytxS2tocnJSQk42dkhDMFB5Z3dabnB1THQ4QnlHczZicndOcll4Q1FWbEwwblVQaG00b0xvTUp3aCs3Cm02aC9ieXJpWU5iZ1ZJTGxBb3d0RkcvdG14bFBYQXpqZXJNa1MwYXRXejJZV3YzVWxpK0RCUnB0SjRVREtoMGYKQzk2VDQ0SkxPelFQMk5obXB4VGhJSTNFNUVnQWJLTHlOOUVCTHZRbVdJRldneEo5Qkc0VnhYcWhSbTVyc2IxWQpCMzRQOVlZNjBHaStWM2dLOVRvUkR0N21nL1k1VWtWbUI4aE1VZ29pWURDY3g0dnlOSWtYZFlvS0hMODd3b1lKCkNDaHJicE1nT1hRRHB1a0pLMWg2SVpGR1U1bVpMd25EVmw4Q2dnRUFRdThRek5KN2hBZ2MwNmF2ZXg1RFZGbEgKZGR1VnREYWtka0xheC9pcS85N3JWR2tzWE8yRWJlZS9FVk81Y1d1UEp3b2JhVmVWZnM2MUkyemp3NlRIOUNadgplZUpjclRueGRURGM0UVdsSjJ3N3pCQWtzN090WjFnQ24ycHNIZ2FDdzhjMTIwOTROZ1AvYzJvRnN1L1JTeEt3CnhjZmNGZm9mMVk5VVRkd3FwZlQyTUVJNzRseDQwcWJER1YzWUxad2s3RHQzRkpQUG5vdDRSVm1mbENaYThSOVkKZmRnOHZNTWdiT3VZMDFoUnNtNVV1S0FEeGNTUzZHQndhRkpscUxmeU80R0FSSzJSQjVvdmQranZ4c3BBdEprUQpJNWtlSkYyYnlPQXlwSWhQQmdza3dlcTd5aWIzRW9SNnd4RFBDNkFMLytvakZ6bVRsMXc1NTl4L2w3N0l1QT09Ci0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+  sslcertificate: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUZJRENDQXdpZ0F3SUJBZ0lKQUxsQ2toc1JhS1RuTUEwR0NTcUdTSWIzRFFFQkJRVUFNQlF4RWpBUUJnTlYKQkFNVENXMWxkR1Z5TFdGd2FUQWVGdzB4TnpBeU1UQXlNVEF4TkRaYUZ3MDBOREEyTWpneU1UQXhORFphTUJReApFakFRQmdOVkJBTVRDVzFsZEdWeUxXRndhVENDQWlJd0RRWUpLb1pJaHZjTkFRRUJCUUFEZ2dJUEFEQ0NBZ29DCmdnSUJBTmVZMlpCUFAwNmNjeFZ3SERWeWk0S1puc2o0RnFhZjdMdWc3L2RZdkJsNFZ0eFlpVmlkUGpsZnllMTMKM2tQMlA5RnpDRjlhT3BucDFNSHNnZHpVNFl0LzVhZUNKbm5FZDA1L25zUmd6NTdJQThTaCtWSkhobDJ4NWRERgp5enNRbm5hbUJrRFZlUnFoamExUFVsQUFuMk4wZzdjSE4rWUJHaGl4RFhIQ3VQZ3h1T1pzaHhmbkNzMTVBZ1gxCmVJZ0NIT2ZQallwV25pbWJnM2FUUEIvbmVlWURicjhWK0Fna2dvNjViQkFTdWdUam9GNDJkTmNaZWtHdUdHODAKUVFERmh1WUlGTHR0TnpNclFmQkJqb01qNktUUmpoK3ZYWXRjUjdYYS85VUZEZ2Z0VzVoK0VURzR6U3hTc2IvMApCWEhtdndZeGd1VWJuUlVSZ09EblVTejMrRHlSRzc4NDFTSkFYMkpEaXpFMFpPZ3ZTSWhxcVF4dEpNaUo4ei9kCjVKbUxhRVRMdnV4UzlJOUYvTUJmRnR2QVlUTWVNUHJWZ3A0MUR5SVlyQ0tseWpkN0JkTkZRZWhmWC93cnhJWmcKSFJ6RTZZRTNlOU02eG04ekllZjRZQ2lmNjU2T1NlRXBoMVZCLy9POUJzS0pPdnZPRmxRWTltZE5jcDhMTU9ZMwpYbEVqWmpHUUZEZkllc2xadjRobE5uVDFoSk03UDRvb1k2REo5ajZtNEg0RitIWmZLNzgvQS9rWDJRaUF4RWlnCmlHQVplT0d2UDRiUUtkRFZMSWVaNFFkbmFFTlVnUTU2dmx6b1Z1UzUwQ1lXWWtYMCtpa0p5SjZtUXpKWk82RnEKelYzSDJpc0FmOUY2UngzZFNkdGQ5WnVuWWovaStMWFY0NTdDaDY0aVNxNHc2bXZ4QWdNQkFBR2pkVEJ6TUIwRwpBMVVkRGdRV0JCVGxlVHI0cmVkcGxINmtOVEJLeGFCcThNZzh5VEJFQmdOVkhTTUVQVEE3Z0JUbGVUcjRyZWRwCmxINmtOVEJLeGFCcThNZzh5YUVZcEJZd0ZERVNNQkFHQTFVRUF4TUpiV1YwWlhJdFlYQnBnZ2tBdVVLU0d4Rm8KcE9jd0RBWURWUjBUQkFVd0F3RUIvekFOQmdrcWhraUc5dzBCQVFVRkFBT0NBZ0VBc2c1Y0YzcUFKVGIybU1rLwp1T1hBMm9rd0wydldkZWo3djVOZHhDV0RiVDc2eE1PVVVJUDJ1NWRJOVFJZTVlYTJENDN3aFd6MzZ5UXBnc0t2Ck11YUNONmtVN0FXWlpqd1RrN1R4K3QzRk1EaG0zY0RGbFNkSllNMmJMQ255ZHJpVDFZWkM1VEhqQkh2V21OcnQKKzdTMi9ISDZ1dkdoMmhSV0duaElObjE3YmcrT3JvSXV3NkNVUkdXdWEyakJ2cEgrSnBsWGIzdTl5MFVybDEvSApBMTFTeW9JY2NmcHpsaERwOWszLzJWazJGeVdOS3Bwb0UvbkxEMDZxdmtONjlNUzl6b0VQWlYvcU5EZ0c1azhmCnlQYVY1UXNkbkh3WGZCUWs2S3JoVUdBVVpCNUhYdGNrOWRqSjlLRERROUZVb0NBL1FnTUVtODZTTmNid2QvUnQKYTJiM25UKzZtLzk4bmVFSFRjL3dtaFFnRmJuZ1BDNGM5U1hiRXpZWlphODRDNnZETzJhNGVwaDNESWNmdlF2YwpKK2hrcS9KRjR4SHh4eEUwZ1g5UjFvdkFHbDJFYmV2RVZSNlZZY1RsU3JmRjRFeVMwVHFxanFjNkFMRXhZNTNnCkd4OTkyUEg4TGUybmZ2QmsweGg5akd3djVFSkJpSkFUTGZoTHdBQUoyZ3ZzTEQyaWdhbENXK3d6dmRjOUY2dHkKeTgvcU1tZkh3eFd6VkIvOTNRTGN4Q2NyVlkrVlN5Y3lGVTF3TFppU1dHZGUvNVBZZmFGbnhHelNQUWk4VUU0eQo1TjdIMW85ZFpsTUd3TC9yaEVKRVIxdWlPM2RtZ2w1THlkbFg1RFc4S2xMVUZkNkxhRVFydm01d3VuaHZIVU55ClMrNTBOazg5cE9wL2I1QkFxM1I3cWxBcUZCbz0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+---
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meter-api
+  namespace: 6fusion-meter
+spec:
+  ports:
+  - name: api-http
+    port: 80
+  - name: api-https
+    port: 443
+  selector:
+    6fusion-app: api
+  type: NodePort
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meter-database
+  namespace: 6fusion-meter
+spec:
+  ports:
+  - name: couch-port
+    port: 5984
+  selector:
+    6fusion-app: database
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meter-sql-database
+  namespace: 6fusion-meter
+  labels:
+    6fusion-app: sql-database
+spec:
+  ports:
+    - name: postgres-port
+      port: 5432
+  selector:
+    6fusion-app: sql-database
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meter-cache
+  namespace: 6fusion-meter
+spec:
+  ports:
+  - name: cache-port
+    port: 6379
+    targetPort: 6379
+  selector:
+    6fusion-app: cache
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: meter-sql-database
+  namespace: 6fusion-meter
+  labels:
+    6fusion-app: sql-database
+spec:
+  replicas: 1
+  selector:
+    6fusion-app: sql-database
+  template:
+    metadata:
+      labels:
+        6fusion-app: sql-database
+    spec:
+      containers:
+      - name: meter-sql-database
+        image: docker.io/6fusion/jenkins-slave:postgres
+        imagePullPolicy: Always
+      imagePullSecrets:
+      - name: meter-registry
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: meter-database
+  namespace: 6fusion-meter
+  labels:
+    6fusion-app: database
+  annotations:
+    componentType: Meter
+    componentLabel: "Datastore"
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        6fusion-app: database
+    spec:
+      containers:
+      - name: meter-database
+        image: 6fusion/jenkins-slave:couchdb
+        imagePullPolicy: Always
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        ports:
+        - containerPort: 5984
+          name: meter-db-port
+      imagePullSecrets:
+      - name: meter-registry
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: meter-cache-alpha
+  namespace: 6fusion-meter
+  labels:
+    6fusion-app: cache
+    version: alpha
+  annotations:
+    componentType: Meter
+    componentLabel: Cache
+spec:
+  replicas: 1
+  selector:
+    6fusion-app: cache
+    version: alpha
+  template:
+    metadata:
+      labels:
+        6fusion-app: cache
+        version: alpha
+    spec:
+      containers:
+      - image: docker.io/redis:3.0.7-alpine
+        name: meter-cache
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 10
+      imagePullSecrets:
+      - name: meter-registry
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: 6fusion-vmware-collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: 6fusion-vmware-collector
+  labels:
+    6fusion-app: mongodb
+spec:
+  ports:
+  - port: 27017
+    name: mongodb-port
+  selector:
+    6fusion-app: mongodb
+  type: NodePort
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  labels:
+    6fusion-app: api
+    version: alpha
+  annotations:
+    componentType: Meter
+    componentLabel: API
+  name: 6fusion-meter-api-alpha
+  namespace: 6fusion-meter
+spec:
+  replicas: 1
+  selector:
+    6fusion-app: api
+    version: alpha
+  template:
+    metadata:
+      labels:
+        6fusion-app: api
+        version: alpha
+    spec:
+      containers:
+      - image: docker.io/6fusion/meter-api:alpha
+
+        name: meter-api
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: RAILS_ENV
+          value: production
+        resources:
+          limits:
+            memory: "1Gi"
+          requests:
+            cpu: "1"
+            memory: "400Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 60
+          timeoutSeconds: 60
+        volumeMounts:
+        - name: secrets
+          mountPath: /etc/secrets
+          readOnly: true
+      - image: docker.io/6fusion/wac-calculator:alpha
+        name: wac-calculator
+        resources:
+          limits:
+            memory: "15Mi"
+          requests:
+            memory: "15Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 30
+      - image: docker.io/6fusion/consumption-patterns:alpha
+        name: consumption-patterns
+        resources:
+          limits:
+            memory: "15Mi"
+          requests:
+            memory: "10Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 30
+      imagePullSecrets:
+      - name: meter-registry
+      volumes:
+      - name: secrets
+        secret:
+          secretName: meter-api-ssl-secret
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: mongodb
+  namespace: 6fusion-vmware-collector
+  labels:
+    6fusion-app: mongodb
+spec:
+  replicas: 1
+  selector:
+    6fusion-app: mongodb
+  template:
+    metadata:
+      name: mongodb
+      labels:
+        6fusion-app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:3.4.6
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - mountPath: /data/db
+          name: mongodb
+      volumes:
+      - name: mongodb
+        emptyDir: {}

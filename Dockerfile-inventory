@@ -1,11 +1,10 @@
 FROM alpine:3.2
 MAINTAINER 6fusion dev <dev@6fusion.com>
 
-ENV BUILD_PACKAGES build-base curl-dev libffi-dev gcc zlib-dev
+ENV BUILD_PACKAGES build-base curl-dev libffi-dev zlib-dev
 ENV RUBY_PACKAGES ruby ruby-bundler ruby-dev ruby-nokogiri
-ENV RUNTIME_PACKAGES ca-certificates bash
+ENV RUNTIME_PACKAGES ca-certificates bash tzdata
 ENV CONTAINER inventory
-ENV SECRETS_PATH /var/run/secrets/vmwarecollector
 ENV METER_ENV production
 
 

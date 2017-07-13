@@ -1,4 +1,0 @@
-apiVersion: v1
-kind: Namespace   # Create this namespace just in case this collector is not in the same node as the On Premise API.
-metadata:         # If it already exists, k8s just shows the error but it won't harm the rest of the items on this file.
-  name: 6fusion-system

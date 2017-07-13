@@ -1,9 +1,7 @@
 require 'rbvmomi_extensions'
-
 require 'vsphere_session'
 
 class VSphereEventCollector
-  include Logging
   using RbVmomiExtensions
 
   def initialize(start_time, end_time)
@@ -62,9 +60,9 @@ class VSphereEventCollector
     time_spec = RbVmomi::VIM.EventFilterSpecByTime(beginTime: @start_time.strftime('%Y-%m-%dT%H:%M:%S'),
                                                    endTime: @end_time.strftime('%Y-%m-%dT%H:%M:%S'))
 
-    logger.debug "vm_create_events: #{vm_create_events.to_a}"
-    logger.debug "vm_remove_events: #{vm_remove_events.to_a}"
-    logger.debug "time_spec: #{time_spec.inspect}"
+    $logger.debug "vm_create_events: #{vm_create_events.to_a}"
+    $logger.debug "vm_remove_events: #{vm_remove_events.to_a}"
+    $logger.debug "time_spec: #{time_spec.inspect}"
 
     RbVmomi::VIM.EventFilterSpec(eventTypeId: (vm_create_events + vm_remove_events).to_a,
                                  time: time_spec)

@@ -1,5 +1,3 @@
-require 'logger'
-
 require 'inventory_collector'
 require 'local_inventory'
 require 'rbvmomi_extensions'

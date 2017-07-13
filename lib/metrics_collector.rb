@@ -1,13 +1,12 @@
 require 'global_configuration'
 require 'inventoried_timestamp'
 require 'local_inventory'
-require 'logging'
 require 'rbvmomi_extensions'
 require 'reading'
 require 'vsphere_session'
+
 class MetricsCollector
   include GlobalConfiguration
-  include Logging
   using RbVmomiExtensions
 
   def initialize
@@ -29,9 +28,9 @@ class MetricsCollector
     # If no morefs were passed in, use all inventory morefs present for the desired timestamp
     machine_morefs = morefs_to_meter.blank? ? filtered_inventory_morefs : morefs_to_meter
     morefs_present_in_results = []
-
-    logger.info "Collecting consumption metrics for machines inventoried at #{time_to_query}"
-    machine_morefs.each_slice(configuration[:vsphere_readings_batch_size]).each do |morefs|
+    $logger.info "Collecting consumption metrics for machines inventoried at #{time_to_query}"
+    machine_morefs.each_slice(configuration[:vsphere_readings_batch_size].to_i / 6).each do |morefs|
+      $logger.debug "Collecting metrics for #{morefs.size} machines"
       results = custom_retrieve_stats(morefs,
                                       Reading.metrics,
                                       interval: '300',
@@ -53,30 +52,37 @@ class MetricsCollector
     (machine_morefs - @readings.map(&:machine_platform_id)).each do |moref|
       machine = @local_inventory[moref]
       next if machine.blank?
-      reading = Reading.new(infrastructure_platform_id: machine.infrastructure_platform_id,
-                            machine_platform_id: machine.platform_id,
+      reading = Reading.new(machine_custom_id: machine.custom_id,
                             end_time: collected_time,
                             start_time: (collected_time - 5.minutes),
                             machine_metrics: { cpu_usage_percent: 0,
                                                memory_bytes: 0 })
 
-      reading.machine_platform_id = moref
+      #reading.machine_platform_id = moref
       machine.disks.each do |disk|
         reading.disk_metrics ||= []
-        reading.disk_metrics << { platform_id:     disk.platform_id,
+        reading.disk_metrics << { custom_id:     disk.custom_id,
                                   read_kilobytes:  0,
                                   write_kilobytes: 0,
                                   usage_bytes:     disk.metrics['usage_bytes'] || 0 }
       end
       machine.nics.each do |nic|
         reading.nic_metrics ||= []
-        reading.nic_metrics << { platform_id:       nic.platform_id,
+        reading.nic_metrics << { custom_id:       nic.custom_id,
                                  transmit_kilobits: 0,
                                  receive_kilobits:  0 }
       end
       @readings << reading
     end
-    logger.info "Adding #{@readings.size} readings to metrics collection"
+
+    # if (@readings.size <  machine_morefs.size) and (inventoried_time.fail_count < 10)
+    #   $logger.warn "#{@readings.size} readings returned for query of #{machine_morefs.size} machines. Will try again later."
+    #   fail_count = inventoried_time.fail_count
+    #   inventoried_time.update_attribute(:fail_count, fail_count + 1)
+    #   return
+    # end
+
+    $logger.info "Adding #{@readings.size} readings to metrics collection"
 
     # We don't update the status until all metrics have been collected. This way, if
     #  saving fails, the inventory will remain queued for metering (i.e., it will get
@@ -90,7 +96,7 @@ class MetricsCollector
 
   def confirm_statistics_level
     unless MetricsCollector.level_3_statistics_enabled?
-      logger.fatal 'Level 3 statistics must be enabled for the 5-minute interval'
+      $logger.fatal 'Level 3 statistics must be enabled for the 5-minute interval'
       raise 'Insufficient vSphere statistics collection level'
     end
   end
@@ -127,7 +133,7 @@ class MetricsCollector
   def custom_retrieve_stats(objects, metrics, opts = {})
     realtime = false
 
-    instances = ['*']
+    # instances = ['*']
     metric_ids = []
 
     metrics.each do |metric|

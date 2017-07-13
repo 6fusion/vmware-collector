@@ -5,7 +5,6 @@ require 'global_configuration'
 require 'interval_time'
 require 'inventoried_timestamp'
 require 'local_inventory'
-require 'logging'
 require 'reading'
 require 'vsphere_session'
 require 'machine'
@@ -15,12 +14,10 @@ require 'vsphere_event_collector'
 
 class MissingLocalReadingsHandler
   include GlobalConfiguration
-  include Logging
-  include MongoConnection
   using IntervalTime # provides the truncated method, utilized by this class to round times to 5-minute intervals
 
   def initialize
-    initialize_mongo_connection
+    Mongoid.load!('../config/mongoid.yml', :default)
   end
 
   def run
@@ -34,7 +31,7 @@ class MissingLocalReadingsHandler
   def unlock_old_inventory_timestamps
     orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}).or({record_status: 'queued_for_metering'})
                               .and(locked: true).lt(inventory_at: 15.minutes.ago)
-    logger.info "orphaned_timestamps = > #{orphaned_timestamps.count}"
+    $logger.info "orphaned_timestamps = > #{orphaned_timestamps.count}"
     orphaned_timestamps.each do |it|
       it.update_attributes(locked: false, locked_by: nil)
     end
@@ -50,23 +47,23 @@ class MissingLocalReadingsHandler
   #     Note: machines created during this time will not have configuration or disk usage information available
   #   3)Add InventoriedTimestamp record to queue the inventory for processing by the Metrics Collector
   def backfill_inventory
-    logger.info 'Checking for missing inventory'
+    $logger.info 'Checking for missing inventory'
     unless missing_inventory_timestamps.empty?
       local_inventory = MachineInventory.new
-      logger.debug 'Instantiating VSphere Event Collector'
+      $logger.debug 'Instantiating VSphere Event Collector'
       event_collector = VSphere.wrapped_vsphere_request { VSphereEventCollector.new(start_time, end_time) }
       
       missing_inventory_timestamps.each do |missing_timestamp|
         local_inventory.at_or_before(missing_timestamp)
         # Add creates
         event_collector.events[missing_timestamp][:created].each do |moref|
-          logger.debug "Inserting empty inventory creation record for VM: #{moref} at time #{missing_timestamp}"
+          $logger.debug "Inserting empty inventory creation record for VM: #{moref} at time #{missing_timestamp}"
           local_inventory[moref] = Machine.new(platform_id: moref,
                                                status: 'created')
         end # !! what's actual vsphere status? infer powerons as well?
         # Update status of deletes
         event_collector.events[missing_timestamp][:deleted].each do |moref|
-          logger.info "Inserting inventory deletion record for missing VM: #{moref} at time #{missing_timestamp}"
+          $logger.info "Inserting inventory deletion record for missing VM: #{moref} at time #{missing_timestamp}"
           local_inventory.delete(moref)
         end
 
@@ -80,34 +77,34 @@ class MissingLocalReadingsHandler
   # Determines if readings are missing for inventoried machines. If true, elucidates which morefs require metering and
   #  passes those to an instance of the Metrics Collector for processing
   def backfill_readings
-    logger.info 'Checking for missing readings'
+    $logger.info 'Checking for missing readings'
     # We're only interested in inventories with a status of metering; a status of 'inventoried', even for an older timestamp,
     #  will still get picked up by the normal Metrics Collector process.
     #  The intent here is to look for any InventoriedTimestamps "stuck" in the 'metering' status, which is a fairly unlikely scenario.
     orphaned_timestamps = InventoriedTimestamp.or({record_status: 'metering'}).or({record_status: 'queued_for_metering'})
                               .and(locked: false).lt(inventory_at: 15.minutes.ago) # We want to make sure to not overlap with the actual metrics collector process
-    logger.info "orphaned_timestamps = > #{orphaned_timestamps.count}"
+    $logger.info "orphaned_timestamps = > #{orphaned_timestamps.count}"
     orphaned_timestamps.group_by{|i| i.inventory_at}.each do |it|
       inv_timestamps = it[1]
       generate_machine_readings_with_missing(inv_timestamps[0].inventory_at) # Map-Reduce to build new collection
-      logger.debug 'machine readings with missing map/reduce initialized'
+      $logger.debug 'machine readings with missing map/reduce initialized'
       grouped_readings_by_timestamp = MachineReadingsWithMissing.collection.aggregate(
           [{'$group' => {'_id' => '$value.inventory_at',
                          data: {'$addToSet' =>
                                     {'moref' => '$value.platform_id'}}}}],
           'allowDiskUse' => true
       )
-      logger.debug 'machine readings with missing map/reduce aggregated'
+      $logger.debug 'machine readings with missing map/reduce aggregated'
       # Remove when _id is nil, case where timestamp had all readings
       missing_machine_morefs_by_timestamp = grouped_readings_by_timestamp.reject { |data| !data['_id'] }
       missing_machine_morefs_by_timestamp.each do |missing_hash|
-        time = missing_hash['_id']
+        # time = missing_hash['_id']
         data = missing_hash['data']
 
-        logger.info("Filling in missing readings for #{data.size} machines for time: #{inv_timestamps[0].inventory_at}")
+        $logger.info("Filling in missing readings for #{data.size} machines for time: #{inv_timestamps[0].inventory_at}")
 
         morefs_for_missing = data.map { |pair| pair['moref'] }
-        logger.info "Inventory => #{morefs_for_missing}"
+        $logger.info "Inventory => #{morefs_for_missing}"
         recollect_missing_readings(inv_timestamps, morefs_for_missing)
       end
       if missing_machine_morefs_by_timestamp.blank?
@@ -129,7 +126,7 @@ class MissingLocalReadingsHandler
             dup.save!
           end
           next if not inventoried_timestamp_free_to_meter? dup
-          logger.debug "Running ID => #{dup._id} ==#{dup.inventory_at} with inventory #{dup.machine_inventory}"
+          $logger.debug "Running ID => #{dup._id} ==#{dup.inventory_at} with inventory #{dup.machine_inventory}"
           metrics_collector.run(dup, morefs_for_missing)
         else
           if inventoried_timestamp_unlocked? dup
@@ -150,7 +147,7 @@ class MissingLocalReadingsHandler
           dup.save!
         end
         next if not inventoried_timestamp_free_to_meter? dup
-        logger.debug "Running ID => #{dup._id} ==#{dup.inventory_at} with inventory #{dup.machine_inventory}"
+        $logger.debug "Running ID => #{dup._id} ==#{dup.inventory_at} with inventory #{dup.machine_inventory}"
         metrics_collector.run(dup, dup.machine_inventory)
       end
     end
@@ -172,7 +169,7 @@ class MissingLocalReadingsHandler
     @window_start_time ||= begin
       if configuration.present_value?(:on_prem_registration_date) # PENDING TO VALIDATE FORMAT
         registration_date = Time.parse(configuration[:on_prem_registration_date])
-        logger.info "REGISTRATION DATE #{registration_date}"
+        $logger.info "REGISTRATION DATE #{registration_date}"
         ((registration_date > 23.hours.ago) ?
             (registration_date + 5.minutes) : # Add 5 minutes so we don't end up rounding down to a time before registration. e.g. 9:03 would truncate to 9:00
            23.hours.ago).truncated
@@ -188,7 +185,7 @@ class MissingLocalReadingsHandler
 
   # Under specific circumstances, it is possible for the end_time to be farther back than the start_time, which obviously is not a valid history gap
   def valid_history_range?
-    logger.debug "Start_time  => #{start_time} == End_time => #{end_time}"
+    $logger.debug "Start_time  => #{start_time} == End_time => #{end_time}"
     start_time < end_time
   end
 

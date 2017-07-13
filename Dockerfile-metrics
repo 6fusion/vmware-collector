@@ -3,9 +3,8 @@ MAINTAINER 6fusion dev <dev@6fusion.com>
 
 ENV BUILD_PACKAGES build-base curl-dev libffi-dev gcc git zlib-dev
 ENV RUBY_PACKAGES ruby ruby-bundler ruby-dev ruby-io-console ruby-nokogiri
-ENV RUNTIME_PACKAGES ca-certificates bash
+ENV RUNTIME_PACKAGES ca-certificates bash tzdata
 ENV CONTAINER metrics
-ENV SECRETS_PATH /var/run/secrets/vmwarecollector
 ENV METER_ENV production
 
 WORKDIR /usr/src/app

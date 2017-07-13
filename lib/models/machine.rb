@@ -1,35 +1,36 @@
 require 'global_configuration'
-require 'logging'
 require 'disk'
 require 'nic'
 require 'matchable'
 require 'on_prem_url_generator'
+
 class Machine
   include Mongoid::Document
   include Mongoid::Timestamps
   include Matchable
-  include Logging
   include OnPremUrlGenerator
   include GlobalConfiguration
 
-  # Remote ID it's a UUID
-  field :remote_id, type: String
-  field :platform_id, type: String
-
+  field :remote_id,     type: String
+  field :platform_id,   type: String
+  field :moref,         type: String
   field :record_status, type: String
   field :inventory_at,  type: DateTime
-  field :name, type: String # A bunch of bad defaults, since the OnPrem API doesn't support nils
-  field :os,            type: String,   default: ""
-  field :virtual_name,  type: String,   default: ""
+  field :name,          type: String
+  field :os,            type: String
+  field :virtual_name,  type: String
+  field :uuid,          type: String
   field :cpu_count,     type: Integer,  default: 1  # Console requires a value for count and mhz > 0
-  field :cpu_speed_hz, type: Integer,  default: 1
+  field :cpu_speed_hz,  type: Integer,  default: 1
   field :memory_bytes,  type: Integer,  default: 0
   field :status,        type: String,   default: 'unknown'
-  field :tags,          type: Array,   default: []
+  field :tags,          type: Set,      default: ['platform:VMware', 'type:virtual machine']
   field :metrics,       type: Hash
   field :submitted_at,  type: DateTime
 
-  field :infrastructure_remote_id, type: String
+  alias :custom_id :uuid
+
+  field :infrastructure_custom_id, type: String
   field :infrastructure_platform_id, type: String
 
   embeds_many :disks
@@ -47,7 +48,7 @@ class Machine
   index({ 'nics.record_status': 1 })
   index({ platform_id: 1 })
   # Expiration
-  index({inventory_at: 1}, {expire_after_seconds: 2.days })
+  index({inventory_at: 1}, {expire_after_seconds: 1.days })
 
   def self.to_be_updated
     most_recent_updates = Machine.collection.aggregate( [ {
@@ -78,6 +79,7 @@ class Machine
       name:         :name,
       os:           :'config.guestFullName',
       virtual_name: :platform_id,
+      uuid:         :'config.instanceUuid',
       cpu_count:    :'summary.config.numCpu',
       memory_bytes: :'summary.config.memorySizeMB',
       status:       :'summary.runtime.powerState'
@@ -91,6 +93,7 @@ class Machine
     machine.assign_machine_disks(attribute_set[:disks])
     machine.assign_machine_nics(attribute_set[:nics])
     machine.assign_disk_metrics(attribute_set[:disk_map])
+    machine.tags += ["os:#{machine.os}"]  # << operator does not work well; maybe a mongoid bug?
     machine
   end
 
@@ -111,12 +114,12 @@ class Machine
           usage_bytes = disk_sizes.group_by{|h| h[:disk]}[disk.key].map{|p|p[:size]}.sum unless disk_sizes.empty?
           disk.metrics['usage_bytes'] = usage_bytes
         else
-          logger.warn "Missing values from disk attributes: #{attr}"
+          $logger.warn "Missing values from disk attributes: #{attr}"
           disk.metrics['usage_bytes'] = 0
         end
       rescue StandardError => e
-        logger.error e.message
-        logger.debug e.backtrace.join("\n")
+        $logger.error e.message
+        $logger.debug e.backtrace.join("\n")
         disk.metrics['usage_bytes'] = 0
       end
     end
@@ -124,7 +127,6 @@ class Machine
 
   def assign_machine_attributes(attr)
     return unless attr
-
     attribute_map.each do |machine_attr, vsphere_attr|
       if ( attr[vsphere_attr].present? )
         self.send("#{machine_attr}=", attr[vsphere_attr])
@@ -133,35 +135,28 @@ class Machine
         #  Likewise, machine attributes will be missing if change is only to disk or nic
         #  Or if the machine is migrated to a different host
         self.record_status = 'incomplete'
-        logger.warn "#{vsphere_attr} is missing from the vSphere properties for machine: #{self.platform_id}"
+        $logger.warn "#{vsphere_attr} is missing from the vSphere properties for machine: #{self.platform_id}"
       end
     end
   end
 
-  def assign_fake_disk
-    self.disks = [ Disk.new(platform_id: 'fake', name: 'fake', key: 'fake', size: 0) ]
-  end
   def assign_machine_disks(disks)
     begin
       self.disks = disks.map{|properties|
         Disk.new(properties) }
     rescue StandardError => e
-      logger.error e.message
-      logger.debug e.backtrace.join("\n")
-      assign_fake_disk if ( ! self.disks or self.disks.empty? )
+      $logger.error e.message
+      $logger.debug e.backtrace.join("\n")
     end
   end
 
-  def assign_fake_nic
-    self.nics = [ Nic.new(platform_id: 'fake', name: 'fake', mac_address: 'FF-FF-FF-FF-FF-FF', ip_address:  '127.0.0.1') ]
-  end
   def assign_machine_nics(nics)
     begin
-      self.nics = nics.each_value.map {|properties| Nic.new(properties) }
+      self.nics = nics.each_value.map{|properties| Nic.new(properties) }
+      self.nics.each{|nic| nic.custom_id = "#{custom_id}-#{nic.platform_id}"} # TODO ewwww
     rescue StandardError => e
-      logger.error e.message
-      logger.debug e.backtrace.join("\n")
-      assign_fake_nic if ( ! self.nics or self.nics.empty? )
+      $logger.error e.message
+      $logger.debug e.backtrace.join("\n")
     end
   end
 
@@ -169,12 +164,12 @@ class Machine
   def api_format
     machine_api_format = {
        'name': name,
-       'custom_id': platform_id,
+       'custom_id': uuid,
        'cpu_count': cpu_count,
        'cpu_speed_hz': cpu_speed_hz,
        'memory_bytes': memory_bytes,
        'status': status,
-       'infrastructure_id': infrastructure_remote_id,
+       'infrastructure_id': infrastructure_custom_id,
        'tags': tags
     }
 
@@ -189,87 +184,56 @@ class Machine
   end
 
   def submit_create
-    logger.info "Creating machine #{name} in OnPrem API"
-    begin
-      # Avoid timeout issue: Successfully creates in OnPrem, but times out before returning 200 with remote_id
-      # Handle these failed creates the next time on_prem_connector runs
-      self.update_attribute(:record_status, 'failed_create') # Gets set to 'verified_create' if successful
+    if already_submitted?
+      self.record_status = 'updated'
+    else
+      begin
+        response = hyper_client.post(machines_post_url(infrastructure_id: infrastructure_custom_id), api_format)
+        if (response && response.code == 200 && response.json['id'])
+          self.remote_id = response.json['id']
 
-      response = hyper_client.post(machines_post_url(infrastructure_id: infrastructure_remote_id), api_format)
-      if (response && response.code == 200 && response.json['id'])
-        self.remote_id = response.json['id']
-
-        # Machine create (POST) doesn't return remote_ids for disks and nics
-        # So, do additional request here and map disk/nic remote_ids back to self
-        assign_disks_nics_remote_ids(self.remote_id)
-        self.submitted_at = Time.now.utc
-        self.record_status = 'verified_create'
+          # Machine create (POST) doesn't return remote_ids for disks and nics
+          # So, do additional request here and map disk/nic remote_ids back to self
+          assign_disks_nics_remote_ids(self.remote_id)
+          self.submitted_at = Time.now.utc
+          self.record_status = 'verified_create'
+        end
+      rescue StandardError => e
+        $logger.error "Error creating machine '#{name}' in 6fusion Meter API"
+        $logger.debug e
+        raise
       end
-    rescue RestClient::Conflict => e
-      logger.warn 'Machine submission generated a conflict in OnPrem; attempting to update local instance to match'
-      machines = hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure_remote_id))
-      me_as_json = machines.find{|machine| machine['name'].eql?(name) }
-
-      if ( me_as_json )
-        self.remote_id = me_as_json['id']
-        self.record_status = 'verified_create'
-      else
-        logger.error "Could not retrieve remote_id from conflict response for machine: #{name}"
-      end
-    rescue StandardError => e
-      logger.error "Error creating machine '#{name}' in OnPrem API"
-      logger.debug e
-      raise
     end
+    self.save
   end
 
 
-  # Note: The reason to check is because TimeOut errors can lead to duplicate submissions
-  def already_submitted?(infrastructure_machines_endpoint)
-    already_submitted = false
-
-    logger.info "Checking OnPrem if #{self.platform_id} was already submitted"
+  def already_submitted?
+    $logger.info "Checking 6fusion Meter for #{self.name}:#{self.platform_id}"
     begin
-      and_query_json = { custom_id: { eq: self.platform_id } }.to_json
-      response = hyper_client.get(infrastructure_machines_endpoint, {"and": and_query_json})
-
-      if response && response.code == 200
-        response_machines_json = (response.json)['embedded']['machines']
-
-        unless response_machines_json.empty?
-          # !!! May want to add check in case returns more than one machine (check status deleted?)
-          machine_remote_id = response_machines_json.first['id']
-          self.remote_id = machine_remote_id
-
-          # Note: Must do an extra request to get the remote_ids for disks/nics, then map to self's disks/nics
-          assign_disks_nics_remote_ids(machine_remote_id)
-
-          already_submitted = true
-        end
-      end
+      response = hyper_client.head_machine(custom_id)
+      response and (response.code == 200)
     rescue StandardError => e
-      logger.error "Error checking whether already_submitted? for machine: #{self.platform_id}"
-      logger.debug e
-      raise e
+      $logger.error "Error checking whether already_submitted? for machine: #{self.platform_id}"
+      $logger.debug e
+      false
     end
-
-    already_submitted
   end
 
   def submit_delete(machine_endpoint)
-    logger.info "Deleting machine #{name} from OnPrem API"
+    $logger.info "Deleting machine #{name} from OnPrem API"
     begin
       response = hyper_client.put(machine_endpoint, api_format)
       self.record_status = 'deleted' if (response.code == 200 || response.code == 404)
     rescue StandardError => e
-      logger.error "Error deleting machine '#{name} from OnPrem API"
-      logger.debug e.backtrace.join("\n")
+      $logger.error "Error deleting machine '#{name} from OnPrem API"
+      $logger.debug e.backtrace.join("\n")
       raise e
     end
   end
 
   def submit_update(machine_endpoint)
-    logger.info "Updating machine #{name} in OnPrem API"
+    $logger.info "Updating machine #{name} in OnPrem API"
     begin
       response = hyper_client.put(machine_endpoint, api_format)
       response_json = response.json
@@ -286,7 +250,7 @@ class Machine
         self.record_status = 'verified_update'
       end
     rescue StandardError => e
-      logger.error "Error updating machine #{name} in API"
+      $logger.error "Error updating machine #{name} in API"
       raise e
     end
 

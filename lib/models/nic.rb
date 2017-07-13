@@ -9,12 +9,15 @@ class Nic
   # Remote ID it's a UUID
   field :remote_id, type: String
   field :platform_id, type: String
+  field :custom_id, type: String
   field :record_status, type: String
   field :name, type: String
   field :kind, type: String, default: 'lan'
   field :ip_address, type: String
   field :mac_address, type: String
   field :metrics, type: Hash
+
+  field :machine_id, type: String
 
   embedded_in :machine
 
@@ -26,17 +29,20 @@ class Nic
   end
 
   def submit_delete(nic_endpoint)
-    logger.info "Deleting nic #{platform_id} for machine #{machine.platform_id} from OnPrem API, at nic_endpoint #{nic_endpoint}"
+    $logger.debug "Deleting nic #{platform_id} for machine #{machine.platform_id} from OnPrem API, at nic_endpoint #{nic_endpoint}"
     begin
-      response = hyper_client.delete(nic_endpoint)
-      self.record_status = 'verified_delete' if response.code == 204
+      self.status = 'deleted'
+      response = hyper_client.put(nic_endpoint)
+      self.record_status = 'verified_delete' #if response.code == 204
     rescue RestClient::ResourceNotFound => e
-      logger.error "Error deleting nic #{platform_id} for machine #{machine.platform_id} from OnPrem API"
-      logger.debug "#{self.inspect}"
+      $logger.error "Error deleting nic #{platform_id} for machine #{machine.platform_id} from OnPrem API"
+      $logger.debug "#{self.inspect}"
+      $logger.debug e.message
       self.record_status = 'unverified_delete'
     rescue
-      logger.error "Error deleting machine '#{name} from OnPrem API"
-      raise
+      $logger.error "Error deleting machine '#{name} from OnPrem API"
+      self.record_status = 'unverified_delete'
+#      raise
     end
 
     self
@@ -44,7 +50,8 @@ class Nic
 
   def api_format
     {
-      "id": remote_id,
+      "id": custom_id,
+      "custom_id": custom_id,
       "name": name,
       "kind": kind.upcase,
       "ip_address": ip_address,

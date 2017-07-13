@@ -1,7 +1,6 @@
 # Adding a couple methods to ObjectUpdate class to simplify parsing elsewhere
 require 'ipaddr'
 require 'rbvmomi'
-require 'logging'
 require 'volume'
 
 module RbVmomiExtensions
@@ -28,14 +27,14 @@ module RbVmomiExtensions
   # Responsibility of this class is to extract properties and reduce the number of network requests (significantly impacts performance)
   refine RbVmomi::VIM::ObjectUpdate do
     def machine_properties
-      logger = Logging::MeterLog.instance.logger
       updated_attributes = Hash.new
       updated_attributes[:platform_id] = moref
+      updated_attributes[:moref] = moref
       updated_attributes[:disks] = Array.new
       updated_attributes[:nics] = Hash.new{|h,k|h[k] = Hash.new}
 
       if ( self.kind.eql?('leave') )
-        logger.debug "Detected 'leave' event for #{moref}; marking as deleted"
+        $logger.debug "Detected 'leave' event for #{moref}; marking as deleted"
         updated_attributes[:'summary.runtime.powerState'] = 'deleted'
       end
 
@@ -61,7 +60,7 @@ module RbVmomiExtensions
                 updated_attributes[:nics][nic.key][:mac_address] = nic.macAddress
                 updated_attributes[:nics][nic.key][:kind] = 'lan' }
             else
-              logger.debug "No value returned by vSphere for cs.name: #{cs.name}; cs.val: #{cs.val}"
+              $logger.debug "No value returned by vSphere for cs.name: #{cs.name}; cs.val: #{cs.val}"
             end
           elsif ( cs.name =~ /guest.net/ )
             cs.val.each do |nic_info|
@@ -79,17 +78,17 @@ module RbVmomiExtensions
                   disk_key = file_layout_ex_disk_layout.key
                   chain.first.fileKey.each{|file_key| updated_attributes[:disk_map][file_key][:disk] = disk_key }
                 else
-                  logger.debug "Unable to determine disk configuration for #{moref}"
-                  logger.debug cs.inspect
+                  $logger.debug "Unable to determine disk configuration for #{moref}"
+                  $logger.debug cs.inspect
                 end
               end
-            end
+            end if cs.val
           elsif ( cs.name =~ /^layoutEx.file$/ )
             updated_attributes[:disk_map] ||= Hash.new{|h,k| h[k] = Hash.new}
 
             cs.val.each {|file_layout_ex_file_info|
               file_key = file_layout_ex_file_info.key
-              updated_attributes[:disk_map][file_key][:size] = file_layout_ex_file_info.size }
+              updated_attributes[:disk_map][file_key][:size] = file_layout_ex_file_info.size } if cs.val
           elsif ( cs.name =~ /memorySizeMB/ )
             updated_attributes[cs.name.to_sym] = cs.val ? (cs.val * 1024**2) : 0
           else
@@ -97,8 +96,8 @@ module RbVmomiExtensions
             updated_attributes[cs.name.to_sym] = cs.val
           end
         rescue StandardError => e
-          logger.warn e.message
-          logger.debug e.backtrace.join("\n")
+          $logger.warn e.message
+          $logger.debug e.backtrace.join("\n")
         end
       end
 
@@ -138,9 +137,8 @@ module RbVmomiExtensions
             attributes[mappings[key]] = cs.val
           end
         rescue StandardError => e
-          logger = Logging::MeterLog.instance.logger
-          logger.warn e.message
-          logger.debug e.backtrace.join("\n")
+          $logger.warn e.message
+          $logger.debug e.backtrace.join("\n")
         end
       end
       attributes[:platform_id] = self.moref
@@ -160,9 +158,8 @@ module RbVmomiExtensions
         begin
           attributes[mappings[key]] = cs.val
         rescue StandardError => e
-          logger = Logging::MeterLog.instance.logger
-          logger.warn e.message
-          logger.debug e.backtrace.join("\n")
+          $logger.warn e.message
+          $logger.debug e.backtrace.join("\n")
         end
       end
       attributes[:platform_id] = self.moref
@@ -178,27 +175,30 @@ module RbVmomiExtensions
       host_bus_adapters = []
 
       self.changeSet.each do |cs|
-        cs.val.each do |hba|
-          hba_attrs = {}
-          host_bus_adapter_attribute_map.each do |k,v|
-            begin
-              if ( k == :speed_mbits )
-                hba_attrs[:speed_mbits] = case
-                                            when hba.respond_to?(:maxSpeedMb) then hba.maxSpeedMb         # RbVmomi::VIM::HostInternetScsiHba has 'maxSpeedMb' (megabits/second)
+        if cs.val
+          cs.val.each do |hba|
+            hba_attrs = {}
+            host_bus_adapter_attribute_map.each do |k,v|
+              begin
+                if ( k == :speed_mbits )
+                  hba_attrs[:speed_mbits] = case
+                                            when hba.respond_to?(:maxSpeedMb) then hba.maxSpeedMb         # RbVmomi ::VIM::HostInternetScsiHba has 'maxSpeedMb' (megabits/second)
                                             when hba.respond_to?(:speed)      then hba.speed / 1_000_000  # RbVmomi::VIM::HostFibreChannelHba has 'speed' (bits/second)
                                             else 0
-                                          end
-              else
-                hba_attrs[k] = hba.send(v)
+                                            end
+                else
+                  hba_attrs[k] = hba.send(v)
+                end
+              rescue StandardError => e
+                $logger.warn e.message
+                $logger.debug e.backtrace.join("\n")
               end
-            rescue StandardError => e
-              logger = Logging::MeterLog.instance.logger
-              logger.warn e.message
-              logger.debug e.backtrace.join("\n")
             end
-          end
 
-          host_bus_adapters << hba_attrs
+            host_bus_adapters << hba_attrs
+          end
+        else
+          puts "Empty cs.val for HBA changeset: #{cs.inspect}"
         end
       end
 
@@ -210,25 +210,27 @@ module RbVmomiExtensions
       nic_attribute_map = { name:         :key,
                             speed_mbits: :'linkSpeed.speedMb' }
       nics = []
-      logger = nil
 
       self.changeSet.each do |cs|
-        cs.val.each do |nic|
-          nic_attrs = {}
-          nic_attribute_map.each do |k,v|
-            begin
-              if ( k == :speed_mbits )
-                nic_attrs[k] = nic.linkSpeed ? nic.linkSpeed.speedMb : 0  # linkSpeed is actually a PhysicalNicLinkInfo object, and will be nil if the link is down
-              else
-                nic_attrs[k] = nic.send(v)
+        if cs.val
+          cs.val.each do |nic|
+            nic_attrs = {}
+            nic_attribute_map.each do |k,v|
+              begin
+                if ( k == :speed_mbits )
+                  nic_attrs[k] = nic.linkSpeed ? nic.linkSpeed.speedMb : 0  # linkSpeed is actually a PhysicalNicLinkInfo object, and will be nil if the link is down
+                else
+                  nic_attrs[k] = nic.send(v)
+                end
+              rescue StandardError => e
+                $logger.warn e.message
+                $logger.debug e.backtrace.join("\n")
               end
-            rescue StandardError => e
-              logger ||= Logging::MeterLog.instance.logger
-              logger.warn e.message
-              logger.debug e.backtrace.join("\n")
             end
+            nics << nic_attrs
           end
-          nics << nic_attrs
+        else
+          puts "Empty cs.val for NIC changeset: #{cs.inspect}"
         end
       end
       nics
@@ -238,8 +240,6 @@ module RbVmomiExtensions
   refine RbVmomi::VIM::ObjectContent do
     def data_center_properties
       attributes = Hash.new
-      logger = nil
-
       propSet.each do |cs|
         begin
           if ( cs.name =~ /^name|hostFolder$/ )
@@ -253,18 +253,18 @@ module RbVmomiExtensions
             attributes[:datastores] = cs.val.map{|datastore| datastore.moref}
           end
         rescue StandardError => e
-          logger ||= Logging::MeterLog.instance.logger
-          logger.warn e.message
-          logger.debug e.backtrace.join("\n")
+          $logger.warn e.message
+          $logger.debug e.backtrace.join("\n")
         end
       end
-      attributes[:platform_id] = self.moref
+      attributes[:platform_id] = self.moref #instanceUuid
+      attributes[:moref] = self.moref
+#      attributes[:platform_id] = self.repond_to?(:instanceUuid) ? self.instanceUuid : self.moref
       attributes
     end
 
     def volume_properties
       attributes = Hash.new
-      logger = nil
 
       propSet.each do |property|
         begin
@@ -278,9 +278,8 @@ module RbVmomiExtensions
             attributes[:ssd] = property.val.vmfs.ssd
           end
         rescue StandardError => e
-          logger ||= Logging::MeterLog.instance.logger
-          logger.warn e.message
-          logger.debug e.backtrace.join("\n")
+          $logger.warn e.message
+          $logger.debug e.backtrace.join("\n")
         end
       end
 

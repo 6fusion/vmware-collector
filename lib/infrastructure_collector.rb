@@ -1,27 +1,24 @@
-require 'global_configuration'
-require 'logging'
 require 'local_inventory'
 require 'vsphere_session'
 require 'rbvmomi_extensions'
 require 'infrastructure'
 class InfrastructureCollector
-  include GlobalConfiguration
-  include Logging
   using RbVmomiExtensions
 
-  MEGABIT_TO_BIT = 1_000_000
-  BASIC_INFRASTRUCTURE_FIELDS = [:name, :platform_id]
   BASIC_HOST_FIELDS = [:platform_id, :uuid, :name, :cluster, :cluster_platform_id, :cpu_hz, :cpu_model,
-    :cpu_cores, :sockets, :threads, :cpus, :memory, :vendor, :model, :os,
-    :os_version, :os_vendor, :inventory]
+                       :cpu_cores, :sockets, :threads, :cpus, :memory, :vendor, :model, :os,
+                       :os_version, :os_vendor, :inventory]
   def initialize
-    logger.info 'Initializing infrastructure collector'
-    @local_inventory = InfrastructureInventory.new
+    $logger.info { 'Initializing infrastructure collector' }
 
+    @local_inventory = InfrastructureInventory.new
+    @vcenter_id = ""
     VSphere.wrapped_vsphere_request do
+      @vcenter_id = VSphere.session.serviceContent.about.instanceUuid
       VSphere.session.propertyCollector.CreateFilter(spec: hosts_filter_spec(VSphere.root_folder, Host.vsphere_query_properties),
                                                      partialUpdates: false)
     end
+
     @infrastructure_volumes = {}
     @hosts = {}
     @clusters = {} # Map ClusterComputeResource.moref => cluster_properties
@@ -31,7 +28,7 @@ class InfrastructureCollector
   end
 
   def run
-    logger.info 'Checking for updates to infrastructure'
+    $logger.info { 'Checking for updates to infrastructure' }
     update = false
     begin
       results = VSphere.wrapped_vsphere_request do
@@ -43,8 +40,8 @@ class InfrastructureCollector
         # Collect attributes in hashes before building host objects and mapping (cluster name, host_bus_adapters)
         results.filterSet.each do |fs|
           object_set = fs.objectSet
-          object_set.select { |os| os.obj.is_a?(RbVmomi::VIM::HostSystem) }.each do |os|
-            # !! hosts deleted?
+          object_set.select{|os| os.obj.is_a?(RbVmomi::VIM::HostSystem)}.each do |os|
+            # !!hosts deleted?
             # @hosts[os.moref] = Host.new(os.host_properties) # Note: this host_properties is added from RbVmomiExtensions
             @hosts[os.moref] = os.host_properties
           end # Store Host level attributes in a hash
@@ -91,6 +88,8 @@ class InfrastructureCollector
         @host_objects[key] = Host.new(host)
       end
       data_centers_hash.each do |platform_id, properties|
+        properties[:name] = "#{properties[:name]} (vCenter:#{@vcenter_id})"
+        properties[:vcenter_id] = @vcenter_id
         host_ids = hosts_for_datacenter(properties[:hostFolder])
 
         properties[:hosts] = @host_objects.select { |k| host_ids.include?(k) }.values
@@ -103,7 +102,7 @@ class InfrastructureCollector
       end
       @local_inventory.save
     end
-    logger.debug 'Generating vSphere session activity with currentTime request'
+    $logger.debug 'Generating vSphere session activity with currentTime request'
     VSphere.wrapped_vsphere_request { VSphere.session.serviceInstance.CurrentTime }
   end
 
@@ -120,7 +119,7 @@ class InfrastructureCollector
   end
 
   def update_fields_for(current_infrastructure,properties)
-    BASIC_INFRASTRUCTURE_FIELDS.each{|field| current_infrastructure[field] = properties[field] }
+    Infrastructure.managed_object_properties.each{|field| current_infrastructure[field] = properties[field] }
     current_infrastructure[:networks] = properties[:networks] ? build_updated_networks(properties) : []
     current_infrastructure[:volumes] = properties[:volumes] ? build_updated_volumes(properties) : []
     current_infrastructure.record_status = 'updated'
@@ -232,7 +231,7 @@ class InfrastructureCollector
   end
 
   def data_centers_filter_spec
-    recurse_folders = RbVmomi::VIM.SelectionSpec(name: 'ParentFolder')
+    # recurse_folders = RbVmomi::VIM.SelectionSpec(name: 'ParentFolder')
 
     # !! can you have datacenters under datacenters?
     # This code gives objects all the way from root to the VM
@@ -375,7 +374,7 @@ class InfrastructureCollector
       new_value = []
       value.map do |val|
         if val[:speed_mbits]
-          val[:speed_bits_per_second] = (val[:speed_mbits] * MEGABIT_TO_BIT)
+          val[:speed_bits_per_second] = (val[:speed_mbits] * 1_000_000)
           val.reject! { |k| k == :speed_mbits }
         end
         new_value << val

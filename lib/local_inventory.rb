@@ -1,22 +1,15 @@
 # This collection of classes is used to help batch insert operations into mongo
 #  since Mongoid currently has no ability to batch insert operations
-require 'logging'
-require 'mongo_connection'
 
 ##################################################
 # Arrayish access for storing to mongo
 class MongoArray < Array
-  include MongoConnection
-  def initialize
-    initialize_mongo_connection
-    super
-  end
 end
 
 class ReadingInventory < MongoArray
   def save
     unless ( empty? )
-      Reading.collection.insert(map(&:as_document))
+      Reading.collection.insert_many(map(&:as_document))
       clear # reset ourself (i.e., the array)
     end
   end
@@ -24,12 +17,9 @@ end
 ##################################################
 # Hash like access to mongo
 class MongoHash < Hash
-  include MongoConnection
-  include Logging
 
   def initialize(klass, key=:platform_id)
     super()
-    initialize_mongo_connection
     @klass = klass
     @key = key
     # Fill in hash values
@@ -46,11 +36,11 @@ class MongoHash < Hash
 
   def save
     unless ( @updates.empty? )
-      logger.info "Saving #{@updates.size} updates to database"
+      $logger.info "Saving #{@updates.size} updates to database"
       pending_inserts = @updates.reject{|item| item.persisted? }
       # Batch all the inserts
       #!! this results in absent timestamps. Hopefully will be alleviated with mongoid 5
-      @klass.collection.insert(pending_inserts.map(&:as_document)) unless pending_inserts.empty?
+      @klass.collection.insert_many(pending_inserts.map(&:as_document)) unless pending_inserts.empty?
       # Iterate over modified items and save
       (@updates - pending_inserts).each{|item|
         Infrastructure.where(remote_id: item.remote_id).map {|i| i.update_attributes(record_status: 'updated')} if item.is_a?(Infrastructure)
@@ -71,8 +61,8 @@ class MongoHash < Hash
       # If the new item being assigned doesn't match the existing,
       #  add the new item to the batch that will be submitted as "updates"
       if !previous.item_matches?(new_item)
-        logger.info "Updating item in local inventory with ID: #{key}"
-        logger.debug "Item: #{previous.to_json}"
+        $logger.info "Updating item in local inventory with ID: #{key}"
+        $logger.debug "Item: #{previous.to_json}"
         new_item.record_status = 'updated'
         add_item = true
       else
@@ -96,15 +86,15 @@ class MongoHash < Hash
             # Grab the class of the first embedded item (which one doesn't matter, they all have to be the same)
             #  and instantiate a new copy with the only two things we care about: the platform ID and a record_status of deleted
             missing_ids.each {|platform_id|
-              logger.info "Flagging #{relation.key}:#{platform_id} for deletion #{%Q|for #{previous.platform_id}| if previous.respond_to?(:platform_id)} "
+              $logger.info "Flagging #{relation.key}:#{platform_id} for deletion #{%Q|for #{previous.platform_id}| if previous.respond_to?(:platform_id)} "
               new_item_embedded << previous_embedded.first.class.new(platform_id: platform_id, record_status: 'to_be_deleted') }
           #!!elsif previous is not an array
           end
         end
       end
     else
-      logger.info "Adding item to local inventory with ID: #{key}"
-      logger.debug "Item: #{new_item.to_json}"
+      $logger.info "Adding item to local inventory with ID: #{key}"
+      $logger.debug "Item: #{new_item.to_json}"
       new_item.record_status = 'created' if new_item.respond_to?(:record_status)
       add_item = true
     end
@@ -152,10 +142,10 @@ class MachineInventory < MongoHash
       machine_as_document.delete('_id')
       machine_as_document['disks'].each{|d|d.delete('_id')}  if machine_as_document['disks'].present?
       machine_as_document['nics'].each{|d|d.delete('_id')} if machine_as_document['nics'].present?
-
+      $logger.debug "Adding deletion record for #{platform_id}"
       self[platform_id] = Machine.new(machine_as_document)
     else
-      logger.warn "Attempt to delete machine #{platform_id} which is not stored to inventory."
+      $logger.warn "Attempt to delete machine #{platform_id} which is not stored to inventory."
     end
   end
 
@@ -179,8 +169,8 @@ class MachineInventory < MongoHash
 
     begin
       if ( @updates.size > 0 )
-        logger.debug "Saving #{@updates.size} machines to local inventory"
-        Machine.collection.insert(@updates.map(&:as_document))
+        $logger.debug "Saving #{@updates.size} machines to local inventory"
+        Machine.collection.insert_many(@updates.map(&:as_document))
         clear
         filtered_items.where({inventory_at: inventory_time}).each {|m|
           store(m.platform_id,m) unless m.status.eql?('deleted') }
@@ -193,11 +183,11 @@ class MachineInventory < MongoHash
         end
         @updates = []
       else
-        logger.warn "Ignoring request to save empty machine inventory."
+        $logger.warn "Ignoring request to save empty machine inventory."
       end
     rescue StandardError => e
-      logger.fatal e
-      logger.debug e.backtrace.join("\n")
+      $logger.fatal e
+      $logger.debug e.backtrace.join("\n")
     end
 
   end
@@ -221,8 +211,8 @@ class MachineInventory < MongoHash
         end
       rescue KeyError => e
         #this really shouldn't be possible
-        logger.debug "Machine not found for platform ID: #{platform_id} when mapping remote ID"
-        logger.debug e
+        $logger.debug "Machine not found for platform ID: #{platform_id} when mapping remote ID"
+        $logger.debug e
       end
     end
   end
@@ -263,10 +253,10 @@ class InfrastructureInventory < MongoHash
       # If the new item being assigned doesn't match the existing,
       #  add the new item to the batch that will be submitted as "updates"
       if !previous.item_matches?(new_item)
-        logger.info "Updating item in local inventory with ID: #{key}"
-        logger.debug "Item: #{previous.to_json}"
+        $logger.info "Updating item in local inventory with ID: #{key}"
+        $logger.debug "Item: #{previous.to_json}"
         previous.attribute_map.keys.each{|key|
-          logger.debug "#{key} changing from #{previous.send("#{key}")} to #{new_item.send("#{key}")}"
+          $logger.debug "#{key} changing from #{previous.send("#{key}")} to #{new_item.send("#{key}")}"
           previous.send("#{key}=", new_item.send("#{key}")) }
         previous.record_status = 'updated' if new_item.respond_to?(:record_status)
         add_item = true
@@ -282,47 +272,43 @@ class InfrastructureInventory < MongoHash
 
       @updates << previous if add_item
     else
-      logger.info "Adding item to local inventory with ID: #{key}"
-      logger.debug "Item: #{new_item.to_json}"
+      $logger.info "Adding item to local inventory with ID: #{key}"
+      $logger.debug "Item: #{new_item.to_json}"
       new_item.record_status = 'created' if new_item.respond_to?(:record_status)
       @updates << new_item
     end
   end
 
-  #!! may not need - initialization currently excluding disabled
-  #def active
-    #values.reject{|i| i.meter_instance.status == 'disabled'}
-  #end
 
   def filtered_items
-    Infrastructure.nin(record_status: ['deleted','disabled'])
+    Infrastructure.nin(record_status: ['deleted'])
   end
 end
 
 
-class PlatformRemoteIdInventory < MongoHash
-  def initialize(key=:platform_key)
-    super(PlatformRemoteId, key)
-  end
+# class PlatformRemoteIdInventory < MongoHash
+#   def initialize(key=:platform_key)
+#     super(PlatformRemoteId, key)
+#   end
 
-  def []=(key,item)
-    if item == nil
-      logger.debug "Cannot add PRID key for value item=nil to PlatformRemoteIdInventory"
-      return
-    end
+#   def []=(key,item)
+#     if item == nil
+#       $logger.debug "Cannot add PRID key for value item=nil to PlatformRemoteIdInventory"
+#       return
+#     end
 
-    if ( has_key?(key) )
-      previous = fetch(key)
-       # In case somehow added PRID without remote_id
-      unless previous.remote_id
-        logger.info "PRID with platform_key #{key} was missing remote_id. Updating with remote_id #{item.remote_id} now"
-        logger.debug "Item: #{previous.to_json}"
-        @updates << previous
-      end
-    else
-      logger.info "Adding new PRID with platform_key: #{key} and remote_id: #{item.remote_id}"
-      logger.debug "Item: #{item.to_json}"
-      @updates << item
-    end
-  end
-end
+#     if ( has_key?(key) )
+#       previous = fetch(key)
+#        # In case somehow added PRID without remote_id
+#       unless previous.remote_id
+#         $logger.info "PRID with platform_key #{key} was missing remote_id. Updating with remote_id #{item.remote_id} now"
+#         $logger.debug "Item: #{previous.to_json}"
+#         @updates << previous
+#       end
+#     else
+#       $logger.info "Adding new PRID with platform_key: #{key} and remote_id: #{item.remote_id}"
+#       $logger.debug "Item: #{item.to_json}"
+#       @updates << item
+#     end
+#   end
+# end

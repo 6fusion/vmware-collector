@@ -5,7 +5,7 @@
 module Matchable
   def item_matches?(other)
     # !!! Why is relations_match?(other) commented out? Need to test this...
-    attributes_match?(other) # and relations_match?(other)
+    attributes_match?(other) and relations_match?(other)
   end
 
   def relations_match?(other)

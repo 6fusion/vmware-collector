@@ -1,5 +1,4 @@
 require 'global_configuration'
-require 'mongo_connection'
 
 namespace :db do
 
@@ -10,9 +9,7 @@ namespace :db do
 
   desc "Initialize mongo connection"
   task :init_mongo do
-    include MongoConnection
-    include GlobalConfiguration
-    initialize_mongo_connection
+    Mongoid.load!('config/mongoid.yml', :default)
   end
 
   task :reset => :init_mongo

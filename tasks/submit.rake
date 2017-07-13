@@ -55,18 +55,7 @@ namespace :submit do
     OnPremConnector.new.submit_reading_creates
   end
 
-  desc "Initialize mongo connection"
-  task :init_mongo do
-    include MongoConnection
-    initialize_mongo_connection
-  end
-
   task :inventory => :machines
-  task :inventory => :init_mongo
-  task :infrastructures => :init_mongo
-  # task :all => :init_mongo
-  # task :show => :init_mongo
-  task :metrics => :init_mongo
   task :readings => :metrics
 end
 

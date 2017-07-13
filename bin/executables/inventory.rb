@@ -7,20 +7,20 @@ module Executables
     end
 
     def execute
-      logger.info 'Starting inventory collector'
+      $logger.info 'Starting inventory collector'
       current_time = Time.now.change(sec: 0) # chop off subseconds
 
       begin
         inventory_data(current_time)
       rescue Timeout::Error
-        logger.error "Error collecting inventory for #{current_time}. Collection timed out."
+        $logger.error "Error collecting inventory for #{current_time}. Collection timed out."
       rescue StandardError => e
-        logger.fatal "Encountered unhandled exception: #{e.message}."
-        logger.debug e.backtrace
+        $logger.fatal "Encountered unhandled exception: #{e.message}."
+        $logger.debug e.backtrace
 #        @scheduler.shutdown
         exit(1)
       end
-      logger.info 'Shutting down inventory collector'
+      $logger.info 'Shutting down inventory collector'
     end
 
     private
@@ -29,14 +29,16 @@ module Executables
       inv_timestamps = initialize_inventoried_timestamps_with_inventory_for(ctime)
       # Handle the case where inventory was collected outside of
       # this process (e.g., meter registration)
+      puts "inv_timestamps: #{inv_timestamps}"
       inv_timestamps.each do |inv|
+        puts "checking inventory timestamp: #{inv}"
         if inv.persisted?
 #          @job.unschedule
         else
           inv.save
           collector_queue = active_collectors
           if collector_queue.empty?
-            logger.debug 'No active datacenters configured. No machine inventory will be collected.'
+            $logger.debug 'No active datacenters configured. No machine inventory will be collected.'
           end
           # Give up after 9 minutes (avoid falling behind by more than one run)
           Timeout.timeout(NINE_MINUTES_IN_SECONDS) do
@@ -59,8 +61,8 @@ module Executables
           rescue ThreadError => e
             # thread execution will always throw an error when elements on queue
             unless e.message == 'queue empty'
-              logger.error e.inspect
-              logger.error e.backtrace
+              $logger.error e.inspect
+              $logger.error e.backtrace
               exit(1)
             end
           end
@@ -76,17 +78,17 @@ module Executables
     #  corresponding to that infrastructure will go away, and vice versa
     def activate(infrastructure)
       unless @collector_hash[infrastructure.platform_id].present?
-        logger.info "Intializing inventory collector for data center: #{infrastructure.name}"
+        $logger.info "Intializing inventory collector for data center: #{infrastructure.name}"
         @collector_hash[infrastructure.platform_id] = InventoryCollector.new(infrastructure)
       end
     rescue StandardError => e
-      logger.fatal "Unable to initialize inventory collection for data center: #{infrastructure.name}"
-      logger.debug e
+      $logger.fatal "Unable to initialize inventory collection for data center: #{infrastructure.name}"
+      $logger.debug e
       raise e
     end
 
     def deactivate(infrastructure)
-      logger.debug "Skipping inventory collection for deactivated data center: #{infrastructure.name}"
+      $logger.debug "Skipping inventory collection for deactivated data center: #{infrastructure.name}"
       @collector_hash.delete(infrastructure.platform_id)
     end
 
@@ -98,14 +100,17 @@ module Executables
           InfrastructureInventory.new
 
       infrastructures.each_value do |infrastructure|
-        infrastructure.enabled? ? activate(infrastructure) : deactivate(infrastructure)
+        activate(infrastructure)
+      #   infrastructure.enabled? ? activate(infrastructure) : deactivate(infrastructure)
       end
       # Remove any that we know about, but are no longer returned by InfrastructureInventory (which filters out disabled)
-      @collector_hash.each do |platform_id, collector|
-        deactivate(collector.infrastructure) unless infrastructures.key?(platform_id)
-      end
+      # @collector_hash.each do |platform_id, collector|
+      #   deactivate(collector.infrastructure) unless infrastructures.key?(platform_id)
+      # end
       queue = Queue.new
-      @collector_hash.values.each { |collector| queue << collector }
+      @collector_hash.values.each { |collector|
+        $logger.debug "adding #{collector.infrastructure.name} to queue"
+        queue << collector }
       queue
     end
 

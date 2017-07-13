@@ -3,12 +3,12 @@ require 'mongoid'
 class Reading
   include Mongoid::Document
   include Mongoid::Timestamps
-  include Logging
 
   field :start_time, type: DateTime
   field :end_time, type: DateTime # Expires field
   field :infrastructure_platform_id, type: String
   field :machine_platform_id, type: String
+  field :machine_custom_id, type: String
   field :record_status, type: String, default: 'created'
   field :submitted_at, type: DateTime
 
@@ -30,9 +30,9 @@ class Reading
     machine_metrics = Hash.new
 
     reading.machine_platform_id = machine.platform_id
+    reading.machine_custom_id = machine.custom_id
     reading.end_time = result[:sampleInfo].first.timestamp  if ( result[:sampleInfo] and result[:sampleInfo].first )
     reading.start_time = reading_timestamps[:start_time]
-    reading.infrastructure_platform_id = machine.infrastructure_platform_id
 
     result[:metrics].select{|k,v| machine_properties.include?(k[0])}.each{|k,v|
       machine_metrics[k[0]] = v.first }
@@ -53,7 +53,7 @@ class Reading
 
     machine.disks.each do |disk|
       reading.disk_metrics ||= Array.new
-      reading.disk_metrics << { platform_id:     disk.platform_id,
+      reading.disk_metrics << { custom_id:       disk.custom_id,
                                 read_kilobytes:  disk_metrics['virtualDisk.read.average'][disk.key]  || 0,
                                 write_kilobytes: disk_metrics['virtualDisk.write.average'][disk.key] || 0,
                                 usage_bytes:     disk.metrics['usage_bytes'] || 0 }
@@ -63,13 +63,11 @@ class Reading
     machine.nics.each{|nic|
       reading.nic_metrics ||= Array.new
 
-      nic_platform_id = nic.platform_id
-
       # Multipy by 8 to convert bytes to bits
-      receive_kilobits = nic_metrics.fetch('net.received.average', {}).fetch(nic_platform_id, 0) * 8
-      transmit_kilobits = nic_metrics.fetch('net.transmitted.average', {}).fetch(nic_platform_id, 0) * 8
+      receive_kilobits = nic_metrics.fetch('net.received.average', {}).fetch(nic.platform_id, 0) * 8
+      transmit_kilobits = nic_metrics.fetch('net.transmitted.average', {}).fetch(nic.platform_id, 0) * 8
 
-      reading.nic_metrics << { platform_id:       nic_platform_id,
+      reading.nic_metrics << { custom_id:         nic.custom_id,
                                receive_kilobits:  receive_kilobits,
                                transmit_kilobits: transmit_kilobits }
     }
@@ -81,11 +79,10 @@ class Reading
   #  The results of the aggregation can be accessed by the MachineReading model
   def self.group_for_submission
     Reading.collection.aggregate([ { '$match': { record_status: 'created'}},
-                                   { '$group': { '_id': {  infrastructure_platform_id: '$infrastructure_platform_id',
-                                                           machine_platform_id: '$machine_platform_id',  },
+                                   { '$group': { '_id': { machine_custom_id: '$machine_custom_id',  },
                                                  readings: { '$push': '$$CURRENT' } } },
                                    { '$out':    'machine_readings' } ],
-                                 { allowDiskUse: true } )
+                                 { allowDiskUse: true } ).all?  # FIXME I cannot get this aggregation to execute in a meaningful way w/o this undocumneted 'all?'
   end
 
   def self.metrics
