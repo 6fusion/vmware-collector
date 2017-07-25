@@ -4,8 +4,13 @@
 
 module Matchable
   def item_matches?(other)
-    # !!! Why is relations_match?(other) commented out? Need to test this...
-    attributes_match?(other) and relations_match?(other)
+    attributes_match?(other) and tags_match?(other)
+  end
+
+  # handle this better? compare .api_formats?
+  def tags_match?(other)
+    (self.respond_to?(:tags) and other.respond_to?(:tags)) ?
+      self.tags == other.tags : true
   end
 
   def relations_match?(other)
@@ -28,10 +33,9 @@ module Matchable
   end
 
   def attributes_match?(other)
-    other &&
-        attribute_map.reject do |key, _value|
-          read_attribute(key.to_sym).eql?(other.read_attribute(key.to_sym))
-        end.empty?
+    other && attribute_map.reject do |key, _value|
+      read_attribute(key.to_sym).eql?(other.read_attribute(key.to_sym))
+    end.empty?
   end
 
   # This is meant only as a "default"

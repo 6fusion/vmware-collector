@@ -24,7 +24,7 @@ class Machine
   field :cpu_speed_hz,  type: Integer,  default: 1
   field :memory_bytes,  type: Integer,  default: 0
   field :status,        type: String,   default: 'unknown'
-  field :tags,          type: Set,      default: ['platform:VMware', 'type:virtual machine']
+  field :tags,          type: Set,      default: ['platform:VMware']
   field :metrics,       type: Hash
   field :submitted_at,  type: DateTime
 
@@ -152,8 +152,7 @@ class Machine
 
   def assign_machine_nics(nics)
     begin
-      self.nics = nics.each_value.map{|properties| Nic.new(properties) }
-      self.nics.each{|nic| nic.custom_id = "#{custom_id}-#{nic.platform_id}"} # TODO ewwww
+      self.nics = nics.each_value.map{|properties| Nic.new(properties.merge(machine_id: self.uuid)) }  # use build?
     rescue StandardError => e
       $logger.error e.message
       $logger.debug e.backtrace.join("\n")
@@ -163,14 +162,14 @@ class Machine
   # Format to submit to OnPrem Console API
   def api_format
     machine_api_format = {
-       'name': name,
-       'custom_id': uuid,
-       'cpu_count': cpu_count,
-       'cpu_speed_hz': cpu_speed_hz,
-       'memory_bytes': memory_bytes,
-       'status': status,
-       'infrastructure_id': infrastructure_custom_id,
-       'tags': tags
+      'name': name,
+     'custom_id': uuid,
+     'cpu_count': cpu_count,
+     'cpu_speed_hz': cpu_speed_hz,
+     'memory_bytes': memory_bytes,
+     'status': status,
+     'infrastructure_id': infrastructure_custom_id,
+     'tags': tags
     }
 
     # !!! Make sure if field is missing these won't blow up
@@ -266,6 +265,22 @@ class Machine
            (self[mongo].blank? or ( self[mongo].is_a?(Integer) && self[mongo].eql?(0) ) ) )
         self.send("#{mongo}=", other_attrs[mongo])
       end
+    end
+    merge_tags(other)
+  end
+
+  def merge_tags(other)
+    if self.tags != other.tags
+      $logger.debug "Tag mismatch:\n#{self.tags.to_a} vs\n#{other.tags.to_a}"
+      current_tags = Hash[self.tags.map{|t| t.split(':',2)}]
+      older_tags = Hash[other.tags.map{|t| t.split(':',2)}]
+      current_tags.each do |key,value|
+        if value.blank?
+          $logger.debug "Updating tag #{key}: to #{key}:#{older_tags[key]}"
+          current_tags[key] = older_tags[key]
+        end
+      end
+      self.tags = current_tags.map{|k,v| "#{k}:#{v}"}
     end
 
     # These values have defaults other than zero or blank or nil (those are handled above)

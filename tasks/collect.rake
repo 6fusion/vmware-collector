@@ -22,9 +22,9 @@ namespace :collect do
   desc "Collect inventory from vSphere"
   task :inventory do
     Rake::Task["collect:infrastructures"].invoke if Infrastructure.empty?
-    now = Time.now.truncated - 10.minutes
+    now = Time.now - 10.minutes
     inventoried_timestamp = InventoriedTimestamp.create(inventory_at: now)
-    Infrastructure.not.where('meter_instance.status': 'disabled').each {|inf|
+    Infrastructure.each {|inf|
       InventoryCollector.new(inf).run(now) }
     inventoried_timestamp.record_status = 'inventoried'
     inventoried_timestamp.save

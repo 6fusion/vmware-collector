@@ -27,6 +27,9 @@ class HyperClient
   def head_machine(id)
     head("#{api_endpoint}/machines/#{id}")
   end
+  def put_machine(machine_json)
+    put("#{api_endpoint}/machines/#{machine_json[:custom_id]}", machine_json)
+  end
 
   def post_samples(machine_id, samples_json)
     post("#{api_endpoint}/machines/#{machine_id}/samples", samples_json)
@@ -36,7 +39,13 @@ class HyperClient
     post("#{api_endpoint}/machines/#{machine_id}/disks", disk_json)
   end
   def put_disk(disk_json)
-    put("#{api_endpoint}/disks/#{disk_json['custom_id']}", disk_json)
+    put("#{api_endpoint}/disks/#{disk_json[:custom_id]}", disk_json)
+  end
+  def post_nic(machine_id, nic_json)
+    post("#{api_endpoint}/machines/#{machine_id}/nics", nic_json)
+  end
+  def put_nic(nic_json)
+    put("#{api_endpoint}/nics/#{nic_json[:custom_id]}", nic_json)
   end
 
   def decode_url(url)
@@ -65,7 +74,7 @@ class HyperClient
         retry
       end
     rescue RestClient::ResourceNotFound => e
-      $logger.warn "#{e.message} for get request to #{url}"
+      $logger.info "#{e.message} for get request to #{url}"
       nil
     rescue StandardError => e
       $logger.error "#{e.message} for get request to #{url}"
@@ -158,7 +167,7 @@ class HyperClient
       $logger.error "#{e.message} for put request to #{url}"
       $logger.error e.inspect
       $logger.debug merged_headers.to_json
-      $logger.debug e.backtrace
+      $logger.debug e.backtrace.join("\n")
       raise e
     end
   end

@@ -25,6 +25,7 @@ gem 'rake'
 #   gem 'time_difference'
 # end
 
+gem 'pry'  # facilitate troubleshooting
+
 group :development, :test do
-  gem 'pry'
 end

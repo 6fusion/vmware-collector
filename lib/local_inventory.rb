@@ -55,6 +55,7 @@ class MongoHash < Hash
 
   def []=(key,new_item)
     add_item = false
+
     if ( has_key?(key) )
       previous = fetch(key)
 
@@ -62,26 +63,31 @@ class MongoHash < Hash
       #  add the new item to the batch that will be submitted as "updates"
       if !previous.item_matches?(new_item)
         $logger.info "Updating item in local inventory with ID: #{key}"
-        $logger.debug "Item: #{previous.to_json}"
+        $logger.debug "Item: #{previous.to_json} updated to #{new_item.to_json}"
         new_item.record_status = 'updated'
         add_item = true
       else
-        new_item.record_status = 'unchanged' #!!? Case where machine is unchanged but disks/nics have changed
+        new_item.record_status = 'unchanged'
       end
 
       # If relations have changed on the item
-      unless (previous.relations_match?(new_item) )
-        new_item.record_status = 'updated'
+      unless ( previous.relations_match?(new_item) )
         add_item = true
-
+        new_item.record_status = 'updated'
+        $logger.info "Updating item in local inventory with ID: #{key}"
+        $logger.debug "Item: #{previous.to_json}\n updated to\n #{new_item.to_json}"
         # Iterate over each "embeds" relation
         previous.class.embedded_relations.each do |name, relation|
           previous_embedded = previous.send(relation.key)
           new_item_embedded = new_item.send(relation.key)
+
           # If it's an embeds_many relation, iterate over each embedded item
           if ( previous_embedded.is_a?(Array) )
             # Determine if anything has been deleted
-            missing_ids = (previous_embedded.map(&:platform_id) - new_item_embedded.map(&:platform_id))
+            missing_ids = (previous_embedded.reject{|p| p.respond_to?(:record_status) and
+                                                        p.record_status and
+                                                        p.record_status.match(/delete/) }
+                                            .map(&:platform_id) - new_item_embedded.map(&:platform_id))
 
             # Grab the class of the first embedded item (which one doesn't matter, they all have to be the same)
             #  and instantiate a new copy with the only two things we care about: the platform ID and a record_status of deleted
@@ -106,7 +112,7 @@ class MongoHash < Hash
     # What existed before gap minus what currently exists
     # [1,2,3] - [1,2] = 3 ... So 3 no longer exists and has been deleted
     deleted = (@initial_inventory - keys)
-
+    $logger.debug "Flagging #{deleted} for deletion"
     unless deleted.empty?
       @klass.in(@key => deleted).update_all(status: 'deleted')
       deleted.each{|key| delete(key)}
@@ -124,11 +130,12 @@ class MachineInventory < MongoHash
   end
 
   def filtered_items
+    # FIXME is there a reason we're not just using InventoriedTimestamps directly?
     filtered_machines = @infrastructure ?
                           Machine.where(infrastructure_platform_id: @infrastructure.platform_id).ne(status: 'deleted') :
                           Machine.ne(status: 'deleted')
 
-    latest_machine = filtered_machines.last
+    latest_machine = filtered_machines.order_by(inventory_at: 'desc').first
 
     filtered_machines = filtered_machines.where(inventory_at: latest_machine.inventory_at) if latest_machine
     filtered_machines
@@ -161,8 +168,8 @@ class MachineInventory < MongoHash
 
     @updates.map! do |machine|
       clone_mach = machine.clone
-      clone_mach.disks = machine.disks.map{|d| d.clone }
-      clone_mach.nics = machine.nics.map{|n| n.clone }
+      clone_mach.disks = machine.disks.reject{|d| d.record_status and d.record_status.eql?('verified_deleted')}.map{|d| d.clone }
+      clone_mach.nics = machine.nics.reject{|n| n.record_status and n.record_status.eql?('verified_deleted')}.map{|n| n.clone }
       clone_mach.inventory_at = inventory_time
       clone_mach
     end
@@ -196,26 +203,26 @@ class MachineInventory < MongoHash
   #  may have been filled in by the OnPrem Connector.
   #!! performance test this. it may be good to iterate over all machines and see if any are
   #  missing the remote_id first
-  def refresh_remote_ids
-    aggregation = Machine.collection.aggregate( [ { '$match': { status:    { '$ne': 'deleted' },
-                                                                remote_id: { '$exists': true } } },
-                                                  { '$group': { '_id': { platform_id: '$platform_id',
-                                                                         remote_id: '$remote_id'  } } }
-                                                ] )
-    aggregation.each do |result_pair|
-      platform_id = result_pair['_id']['platform_id']
-      remote_id =   result_pair['_id']['remote_id']
-      begin
-        if ( machine = fetch(platform_id) )
-          machine.remote_id ||= remote_id
-        end
-      rescue KeyError => e
-        #this really shouldn't be possible
-        $logger.debug "Machine not found for platform ID: #{platform_id} when mapping remote ID"
-        $logger.debug e
-      end
-    end
-  end
+  # def refresh_remote_ids
+  #   aggregation = Machine.collection.aggregate( [ { '$match': { status:    { '$ne': 'deleted' },
+  #                                                               remote_id: { '$exists': true } } },
+  #                                                 { '$group': { '_id': { platform_id: '$platform_id',
+  #                                                                        remote_id: '$remote_id'  } } }
+  #                                               ] )
+  #   aggregation.each do |result_pair|
+  #     platform_id = result_pair['_id']['platform_id']
+  #     remote_id =   result_pair['_id']['remote_id']
+  #     begin
+  #       if ( machine = fetch(platform_id) )
+  #         machine.remote_id ||= remote_id
+  #       end
+  #     rescue KeyError => e
+  #       #this really shouldn't be possible
+  #       $logger.debug "Machine not found for platform ID: #{platform_id} when mapping remote ID"
+  #       $logger.debug e
+  #     end
+  #   end
+  # end
 
   def at_or_before(inventory_time)
     clear #!! optimal?
@@ -256,13 +263,17 @@ class InfrastructureInventory < MongoHash
         $logger.info "Updating item in local inventory with ID: #{key}"
         $logger.debug "Item: #{previous.to_json}"
         previous.attribute_map.keys.each{|key|
-          $logger.debug "#{key} changing from #{previous.send("#{key}")} to #{new_item.send("#{key}")}"
+          $logger.debug { %Q|#{key} changing from #{previous.send("#{key}")} to #{new_item.send("#{key}")}| }
           previous.send("#{key}=", new_item.send("#{key}")) }
+
         previous.record_status = 'updated' if new_item.respond_to?(:record_status)
         add_item = true
       end
+
       # If relations have changed on the new item
       unless (previous.relations_match?(new_item) )
+        $logger.info "Updating item in local inventory with ID: #{key}"
+        $logger.debug "Item: #{previous.to_json}"
         # Iterate over each relation
         add_item = true
         previous.class.embedded_relations.each do |name, relation|

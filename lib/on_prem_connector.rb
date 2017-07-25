@@ -108,7 +108,7 @@ class OnPremConnector
   end
 
   def prep_and_post_reading(machine_reading)
-    machine_reading.post_to_api#(infrastructure_machine_readings_url(machine_prid.remote_id))
+    machine_reading.post_to_api
   end
 
 
@@ -141,14 +141,20 @@ class OnPremConnector
       $logger.debug 'No machines require deletion from OnPrem'
     end
 
-    machine_deletes.each do |deleted_machine|
-      submit_url = machine_url(deleted_machine)
-      deleted_machine.submit_delete(submit_url)
+    # FIXME lots of room for optimization here. probably pull disks/nics out to top levle docs
+    machine_deletes.each do |machine|
+      machine.disks.select{|d| d.status.eql?('active')}.each{|d|
+        d.record_status = 'to_be_deleted' }
+      machine.nics.select{|n| n.status.eql?('active')}.each{|n|
+        n.record_status = 'to_be_deleted' }
+      machine.save
+      submit_machine_disk_and_nic_deletes
 
-      if deleted_machine.record_status == 'deleted'
-        deleted_machine.save # Update status in mongo
-      else
-        $logger.error "Error deleting machine: Database ID:#{deleted_machine.id}, Platform ID:#{deleted_machine.platform_id}"
+      machine.status = 'deleted'
+      @hyper_client.put_machine(machine.api_format)
+
+      if machine.record_status == 'deleted'
+        machine.save # Update status in mongo
       end
     end
   end
@@ -169,13 +175,12 @@ class OnPremConnector
           submit_url = machine_url(updated_machine)
           submitted_machine = updated_machine.submit_update(submit_url)
           api_machine = retrieve_api_machine(updated_machine)
-          verify_and_submit_nics_updates(submitted_machine, api_machine)
-          verify_and_submit_disks_updates(submitted_machine, api_machine)
+          verify_and_submit_nic_updates(submitted_machine, api_machine)
+          verify_and_submit_disk_updates(submitted_machine, api_machine)
           $logger.debug "submitted_machine.record_status => #{submitted_machine.record_status} \n\n"
           # Note: Successfully updated machines record_status changes from "updated" to "verified_update"
           if submitted_machine.record_status == 'verified_update'
             submitted_machine.save # Save status in mongo
-            # process_verified_machine_prids(submitted_machine)
           else
             $logger.error "Machine #{submitted_machine.name}/#{submitted_machine.platform_id} not updated."
           end
@@ -185,7 +190,6 @@ class OnPremConnector
           $logger.debug e.backtrace.join("\n")
           $logger.error "Error updating machine: #{e.message}"
         ensure
-          # @local_platform_remote_id_inventory.save
         end
       end
  #   end
@@ -222,112 +226,126 @@ class OnPremConnector
   # Finds documents with nics or disks that need to be deleted, then calls specific delete functions
   def submit_machine_disk_and_nic_deletes
     machines_with_disk_or_nic_deletes = Machine.disks_or_nics_to_be_deleted
+
     machines_with_disk_or_nic_deletes.each do |machine|
       disk_deletes = machine.disks.select { |d| 'to_be_deleted' == d.record_status }
       nic_deletes = machine.nics.select { |n| 'to_be_deleted' == n.record_status }
 
-      disk_deletes.each do |ddel|
-        submit_machine_disk_delete(ddel)
+      disk_deletes.each do |disk|
+        $logger.debug "Deleting disk #{disk.name}/#{disk.platform_id} form machine #{machine.name}"
+        disk.status = 'deleted'
+        begin
+          @hyper_client.put_disk(disk.api_format)
+          disk.update_attribute(:record_status, 'verified_delete')
+        rescue RestClient::ResourceNotFound => e
+          disk.update_attribute(:record_status, 'verified_delete')
+        end
       end
 
-      nic_deletes.each do |ndel|
-        submit_machine_nic_delete(ndel)
+      nic_deletes.each do |nic|
+        $logger.debug "Deleting nic #{nic.name}/#{nic.platform_id} form machine #{machine.name}"
+        nic.status = 'deleted'
+        begin
+          @hyper_client.put_nic(nic.api_format)
+          nic.update_attribute(:record_status, 'verified_delete')
+        rescue RestClient::ResourceNotFound => e
+          nic.update_attribute(:record_status, 'verified_delete')
+        end
       end
     end
   end
 
-  def submit_machine_disk_delete(disk)
-    $logger.debug 'Processing disk that require OnPrem deletion'
+  # def submit_machine_disk_delete(disk)
+  #   $logger.debug "Deleting disk #{disk.name}/#{disk.platform_id}"
 
-    submit_url = disk_url(disk)
-    deleted_disk = disk.submit_delete(submit_url)
-    if deleted_disk.record_status == 'verified_delete' || deleted_disk.record_status == 'unverified_delete'
-      deleted_disk.save # Update status in mongo
-    else
-      $logger.error "Error deleting disk: platform_id = #{disk.platform_id}, mongo _id = #{disk.id}, submit_url = #{submit_url}"
-    end
-  end
+  #   disk.status = 'deleted'
+  #   deleted_disk = disk.submit_delete(submit_url)
+  #   if deleted_disk.record_status == 'verified_delete' || deleted_disk.record_status == 'unverified_delete'
+  #     deleted_disk.save # Update status in mongo
+  #   else
+  #     $logger.error "Error deleting disk: platform_id = #{disk.platform_id}, mongo _id = #{disk.id}, submit_url = #{submit_url}"
+  #   end
+  # end
 
-  def submit_machine_nic_delete(nic)
-    $logger.debug 'Processing nic that require OnPrem deletion'
+  # def submit_machine_nic_delete(nic)
+  #   $logger.debug 'Processing nic that require OnPrem deletion'
 
-    submit_url = nic_url(nic)
-    deleted_nic = nic.submit_delete(submit_url)
-    if deleted_nic.record_status == 'verified_delete' || deleted_nic.record_status == 'unverified_delete'
-      deleted_nic.save # Update status in mongo
-    else
-      $logger.error "Error deleting NIC: platform_id = #{nic.platform_id}, platform _id = #{nic.id}, submit_url = #{submit_url}"
-    end
-  end
+  #   submit_url = nic_url(nic)
+  #   deleted_nic = nic.submit_delete(submit_url)
+  #   if deleted_nic.record_status == 'verified_delete' || deleted_nic.record_status == 'unverified_delete'
+  #     deleted_nic.save # Update status in mongo
+  #   else
+  #     $logger.error "Error deleting NIC: platform_id = #{nic.platform_id}, platform _id = #{nic.id}, submit_url = #{submit_url}"
+  #   end
+  # end
 
 
-  def retrieve_machines(infrastructure)
-    machines_by_platform_id = {}
-    machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure.remote_id))
-    machines_json.each do |json|
-      remote_id = json['id']
-      response = @hyper_client.get(retrieve_machine(remote_id))
-      next unless response.code == 200
-      machine_json = JSON.parse(response)
-      machine = Machine.new(remote_id: machine_json['id'],
-                            name: machine_json['name'],
-                            virtual_name: machine_json['custom_id'],
-                            cpu_count: machine_json['cpu_count'],
-                            cpu_speed_hz: machine_json['cpu_speed_hz'],
-                            memory_bytes: machine_json['memory_bytes'],
-                            status: machine_json['status'])
-      yield "Retrieved #{machine.name}" if block_given?
-      disks_json = machine_json['embedded']['disks']
-      machine.disks = disks_json.map { |dj|
-        Disk.new(remote_id: dj['id'],
-                 name: dj['name'],
-                 platform_id: dj['uuid'],
-                 type: 'Disk',
-                 size: dj['storage_bytes'])
-      }
+#   def retrieve_machines(infrastructure)
+#     machines_by_platform_id = {}
+#     machines_json = @hyper_client.get_all_resources(infrastructure_machines_url(infrastructure_id: infrastructure.remote_id))
+#     machines_json.each do |json|
+#       remote_id = json['id']
+#       response = @hyper_client.get(retrieve_machine(remote_id))
+#       next unless response.code == 200
+#       machine_json = JSON.parse(response)
+#       machine = Machine.new(remote_id: machine_json['id'],
+#                             name: machine_json['name'],
+#                             virtual_name: machine_json['custom_id'],
+#                             cpu_count: machine_json['cpu_count'],
+#                             cpu_speed_hz: machine_json['cpu_speed_hz'],
+#                             memory_bytes: machine_json['memory_bytes'],
+#                             status: machine_json['status'])
+#       yield "Retrieved #{machine.name}" if block_given?
+#       disks_json = machine_json['embedded']['disks']
+#       machine.disks = disks_json.map { |dj|
+#         Disk.new(remote_id: dj['id'],
+#                  name: dj['name'],
+#                  platform_id: dj['uuid'],
+#                  type: 'Disk',
+#                  size: dj['storage_bytes'],
+#                  status: dj['status'])
+#       }
 
-      nics_json = machine_json['embedded']['nics']
-      machine.nics = nics_json.map { |nj|
-        Nic.new(remote_id: nj['id'],
-                name: nj['name'],
-                kind: nj['kind'].eql?(0) ? 'lan' : 'wan',
-                ip_address: nj['ip_address'],
-                mac_address: nj['mac_address'])
-      }
+#       nics_json = machine_json['embedded']['nics']
+#       machine.nics = nics_json.map { |nj|
+#         Nic.new(remote_id: nj['id'],
+#                 name: nj['name'],
+#                 kind: nj['kind'].eql?(0) ? 'lan' : 'wan')
+#       }
 
-      machines_by_platform_id[machine_json['custom_id']] = machine # CHECK if this is uniq
-    end
-#    $logger.debug "machines_by_platform_id = > #{machines_by_platform_id.inspect} \n\n"
-    machines_by_platform_id
-  end
+#       machines_by_platform_id[machine_json['custom_id']] = machine # CHECK if this is uniq
+#     end
+# #    $logger.debug "machines_by_platform_id = > #{machines_by_platform_id.inspect} \n\n"
+#     machines_by_platform_id
+#   end
 
-  def load_machines_data
-    all_machines_json = @hyper_client.get_all_resoures(machines_url)
+  # def load_machines_data
+  #   all_machines_json = @hyper_client.get_all_resoures(machines_url)
 
-    machines_to_save = []
+  #   machines_to_save = []
 
-    all_machines_json.each do |json_batch|
-      machines = json_batch['embedded']['machines']
+  #   all_machines_json.each do |json_batch|
+  #     machines = json_batch['embedded']['machines']
 
-      machines_to_save << machines.map do |m|
-        properties = {
-            remote_id: m['remote_id'],
-            name: m['name'],
-            virtual_name: m['custom_id'],
-            cpu_count: m['cpu_count'],
-            cpu_speed_hz: m['cpu_speed_hz'],
-            memory_bytes: m['memory_bytes'],
-            status: m['status']
-        }
-        Machine.new(properties)
-      end
-    end
+  #     machines_to_save << machines.map do |m|
+  #       properties = {
+  #           remote_id: m['remote_id'],
+  #           name: m['name'],
+  #           virtual_name: m['custom_id'],
+  #           cpu_count: m['cpu_count'],
+  #           cpu_speed_hz: m['cpu_speed_hz'],
+  #           memory_bytes: m['memory_bytes'],
+  #           status: m['status']
+  #       }
+  #       Machine.new(properties)
+  #     end
+  #   end
 
-    Machine.collection.insert(machines_to_save.flatten.map(&:as_document))
-    # !!! This won't work without MoRef
-    # @local_machine_inventory['<MoRef>'] = Machine.new(properties)
-    # @local_machine_inventory.save
-  end
+  #   Machine.collection.insert(machines_to_save.flatten.map(&:as_document))
+  #   # !!! This won't work without MoRef
+  #   # @local_machine_inventory['<MoRef>'] = Machine.new(properties)
+  #   # @local_machine_inventory.save
+  # end
 
   def pause(reset_time)
     $logger.warn 'API request limit reached'
@@ -346,49 +364,59 @@ class OnPremConnector
     end
   end
 
-  def verify_and_submit_nics_updates(updated_machine, _api_machine)
-    to_be_created = (updated_machine.nics.map(&:api_format)).select { |n| n[:id].nil? && n[:name].present? }
-    create_nics(to_be_created, updated_machine) if to_be_created.present?
+  def verify_and_submit_nic_updates(machine, api_machine)
+    remote_nics = {}
+    api_machine['embedded']['nics'].each{|n| remote_nics[n['custom_id']] = Nic.new(platform_id: n['custom_id'],
+                                                                                   name:        n['name'])}
+
+    machine.nics.reject{|n| remote_nics.keys.include?(n.custom_id)}.each{|nic|
+      create_nic(machine, nic)
+      remote_nics[nic.custom_id] = nic}
+
+    # TODO utilize matchable? id could be a problem...
+    machine.nics
+      .select{|n| (remote_nics[n.custom_id].name != n.name) or
+                  (remote_nics[n.custom_id].status != n.status)}
+      .each{|nic| update_nic(nic) }
   end
 
-  def create_nics(nics, machine)
-    submit_url = machine_nics_url(machine.remote_id)
-    nics.each do |nic|
-      response = @hyper_client.post(submit_url, nic)
-      if response && response.code == 200
-        current_nic = machine.nics.select { |n| n if n.name == nic[:name] }.first
-        current_nic.update_attributes(remote_id: response.json['id'], record_status: 'verified_create')
-        $logger.debug "Successfully created nic #{nic[:name]} for machine #{machine.name}"
-      else
-        machine.update_attributtes(record_status: 'updated')
-        $logger.error "Couldn't create nic #{nic[:name]} for machine #{machine.name}"
-      end
-    end
+  def create_nic(machine, nic)
+    $logger.info "Creating NIC #{nic.name}/#{nic.custom_id} in 6fusion Meter"
+    response = @hyper_client.post_nic(machine.custom_id, nic.api_format)
+    nic.update_attribute(:record_status, 'verified_create') if response.code == 200
+  end
+  def update_nic(nic)
+    $logger.info "Updating nic #{nic.name}/#{nic.custom_id} in 6fusion Meter"
+    response = @hyper_client.put_nic(nic.api_format)
+    nic.update_attribute(:record_status, 'verified_update') if response.code == 200
   end
 
-  def verify_and_submit_disks_updates(machine, api_machine)
+  def verify_and_submit_disk_updates(machine, api_machine)
     remote_disks = {}
     api_machine['embedded']['disks'].each{|d| remote_disks[d['custom_id']] = Disk.new(platform_id: d['custom_id'],
                                                                                       name:        d['name'],
                                                                                       size:        d['storage_bytes'])}
+    machine.disks
+      .reject{|d| remote_disks.keys.include?(d.custom_id)}
+      .each{|disk|
+        create_disk(machine, disk)
+        remote_disks[disk.custom_id] = disk}
 
-    machine.disks.reject{|d| remote_disks.keys.include?(d.custom_id)}.each{|disk|
-      create_disk(machine, disk)
-      remote_disks[disk.custom_id] = disk}
-
-    machine.disks.select{|d| (remote_disks[d.custom_id].name != d.name) or (remote_disks[d.custom_id].size != d.size) }.each{|disk|
-      update_disk(disk) }
-
+    machine.disks
+      .select{|d| d.status.eql?('updated')}
+      .select{|d| (remote_disks[d.custom_id].name != d.name) or (remote_disks[d.custom_id].size != d.size) }
+      .each{|disk|
+        update_disk(disk) }
   end
 
   def update_disk(disk)
-    $logger.info "Updating #{disk.name}/#{disk.custom_id} in 6fusion Meter"
+    $logger.info "Updating disk #{disk.name}/#{disk.custom_id} in 6fusion Meter"
     response = @hyper_client.put_disk(disk.api_format)
     disk.update_attribute(:record_status, 'verified_update') if response.code == 200
   end
 
   def create_disk(machine, disk)
-    $logger.info "Creating #{disk.name}/#{disk.custom_id} in 6fusion Meter"
+    $logger.info "Creating disk #{disk.name}/#{disk.custom_id} in 6fusion Meter"
     response = @hyper_client.post_disk(machine.custom_id, disk.api_format)
     disk.update_attribute(:record_status, 'verified_create') if response.code == 200
   end

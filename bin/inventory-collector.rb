@@ -28,9 +28,14 @@ scheduler_5m = Rufus::Scheduler.new(max_work_threads: 1)
 
 $logger.info 'API syncronization scheduled to run every minute'
 on_prem_connector = OnPremConnector.new
-scheduler_1m.every '1m' do
-  on_prem_connector.submit
-end
+#scheduler_1m.every '1m' do
+t = Thread.new {
+  loop do
+    on_prem_connector.submit
+    sleep 60
+  end
+}
+#end
 
 $logger.info 'Inventory and Infrastructure scheduled to run every 5 minutes'
 inventory_collectors = Hash.new

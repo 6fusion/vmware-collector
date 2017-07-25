@@ -9,13 +9,14 @@ class Nic
   # Remote ID it's a UUID
   field :remote_id, type: String
   field :platform_id, type: String
-  field :custom_id, type: String
+  #field :custom_id, type: String
   field :record_status, type: String
   field :name, type: String
   field :kind, type: String, default: 'lan'
   field :ip_address, type: String
   field :mac_address, type: String
   field :metrics, type: Hash
+  field :status, type: String, default: 'active'
 
   field :machine_id, type: String
 
@@ -48,14 +49,17 @@ class Nic
     self
   end
 
+  def custom_id
+    "#{self.machine.uuid}-#{self.platform_id}"
+  end
+
   def api_format
     {
-      "id": custom_id,
-      "custom_id": custom_id,
-      "name": name,
-      "kind": kind.upcase,
-      "ip_address": ip_address,
-      "mac_address": mac_address
+      'id': custom_id,
+     'custom_id': custom_id,
+     'name': name,
+     'kind': kind.upcase,
+     'status': status
     }
   end
 
