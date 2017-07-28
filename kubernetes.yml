@@ -263,7 +263,7 @@ parameters:
 - name: api-port
   section: on-prem-secret
   sectionDisplayName: Meter
-rake cons  type: int
+  type: int
   displayName: "Meter API Port"
   description: "Host port of 6fusion Meter API"
   validations:
