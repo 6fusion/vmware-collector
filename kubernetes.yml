@@ -228,11 +228,11 @@ parameters:
   type: password
   description: "vCenter account password"
 - name: vcenter-descriptor
-  displayName: "vCenter Descriptor"
+  displayName: "vCenter Tag"
   section: vcenter-secret
   sectionDisplayName: vCenter
   type: string
-  description: "A short, descriptive name for the vCenter. Datacenters will be tagged with this prefix in the 6fusion Meter."
+  description: "A short, distinguishing tag for the vCenter"
 - name: ignore-ssl-errors
   section: vcenter-secret
   sectionDisplayName: vCenter
@@ -263,7 +263,7 @@ parameters:
 - name: api-port
   section: on-prem-secret
   sectionDisplayName: Meter
-  type: int
+rake cons  type: int
   displayName: "Meter API Port"
   description: "Host port of 6fusion Meter API"
   validations:
@@ -271,6 +271,8 @@ parameters:
   expandExpression: ${METER_API_PORT}
   advanced: true
 - name: api-protocol
+  displayName: "Meter API Protocol"
+  description: "Access the meter unencrypted, or through SSL"
   section: on-prem-secret
   sectionDisplayName: Meter
   type: enum
