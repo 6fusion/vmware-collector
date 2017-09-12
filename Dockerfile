@@ -10,6 +10,7 @@ ENV METER_ENV production
 LABEL vendor="6fusion USA, Inc."  \
       version=""  \
       release=""  \
+      commit="" \
       url="https://6fusion.com"
 
 WORKDIR /usr/src/app
