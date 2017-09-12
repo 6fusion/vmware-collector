@@ -7,6 +7,10 @@ ENV RUNTIME_PACKAGES ca-certificates bash tzdata
 
 ENV METER_ENV production
 
+LABEL vendor="6fusion USA, Inc."  \
+      version=""  \
+      release=""  \
+      url="https://6fusion.com"
 
 WORKDIR /usr/src/app
 COPY . /usr/src/app
