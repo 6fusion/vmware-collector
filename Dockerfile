@@ -4,9 +4,14 @@ MAINTAINER 6fusion dev <dev@6fusion.com>
 ENV BUILD_PACKAGES build-base curl-dev libffi-dev zlib-dev
 ENV RUBY_PACKAGES ruby ruby-bundler ruby-dev ruby-nokogiri ruby-bigdecimal
 ENV RUNTIME_PACKAGES ca-certificates bash tzdata
-ENV CONTAINER inventory
+
 ENV METER_ENV production
 
+LABEL vendor="6fusion USA, Inc."  \
+      version=""  \
+      release=""  \
+      commit="$GIT_COMMIT" \
+      url="https://6fusion.com"
 
 WORKDIR /usr/src/app
 COPY . /usr/src/app

@@ -56,25 +56,80 @@ objects:
 - apiVersion: v1
   kind: ReplicationController
   metadata:
-    name: 6fusion-vmwarecollector-master
+    name: 6fusion-meter-connector
     namespace: 6fusion-vmware-collector
     labels:
-      6fusion-app: vmwarecollector-master
+      6fusion-app: meter-connector
   spec:
     replicas: 1
     selector:
-      6fusion-app: vmwarecollector-master
+      6fusion-app: meter-connector
     template:
       metadata:
-        name: 6fusion-vmwarecollector-master
+        name: 6fusion-meter-connector
         labels:
-          6fusion-app: vmwarecollector-master
+          6fusion-app: meter-connector
       spec:
         containers:
-        - name: vmware-collector-inventory
+        - name: meter-connector
           image: 6fusion/vmware-collector:alpha
           imagePullPolicy: IfNotPresent
+          command:
+          - bin/meter-connector.rb
           env:
+          - name: METER_API_PROTOCOL
+            valueFrom:
+              secretKeyRef:
+                key: api-protocol
+                name: on-prem-secret
+          - name: ON_PREM_API_HOST
+            valueFrom:
+              secretKeyRef:
+                key: api-host
+                name: on-prem-secret
+          - name: ON_PREM_API_PORT
+            valueFrom:
+              secretKeyRef:
+                key: api-port
+                name: on-prem-secret
+          - name: ORGANIZATION_ID
+            valueFrom:
+              secretKeyRef:
+                key: organization-id
+                name: on-prem-secret
+          volumeMounts:
+          - name: on-prem-secret
+            mountPath: /var/run/secrets/vmwarecollector/on-prem
+        volumes:
+        - name: on-prem-secret
+          secret:
+            secretName: on-prem-secret
+- apiVersion: v1
+  kind: ReplicationController
+  metadata:
+    name: 6fusion-inventory-collector
+    namespace: 6fusion-vmware-collector
+    labels:
+      6fusion-app: inventory-collector
+  spec:
+    replicas: 1
+    selector:
+      6fusion-app: inventory-collector
+    template:
+      metadata:
+        name: 6fusion-inventory-collector
+        labels:
+          6fusion-app: inventory-collector
+      spec:
+        containers:
+        - name: inventory-collector
+          image: 6fusion/vmware-collector:alpha
+          imagePullPolicy: IfNotPresent
+          command:
+          - bin/inventory-collector.rb
+          env:
+          - name: CONTAINER
+            value: inventory
           - name: VSPHERE_HOST
             valueFrom:
               secretKeyRef:
@@ -150,25 +205,29 @@ objects:
 - apiVersion: v1
   kind: ReplicationController
   metadata:
-    name: 6fusion-vmwarecollector-metrics
+    name: 6fusion-metrics-collector
     namespace: 6fusion-vmware-collector
     labels:
-      6fusion-app: vmwarecollector-metrics
+      6fusion-app: metrics-collector
   spec:
     replicas: 1
     selector:
-      6fusion-app: vmwarecollector-metrics
+      6fusion-app: metrics-collector
     template:
       metadata:
-        name: 6fusion-vmwarecollector-metrics
+        name: metrics-collector
         labels:
-          6fusion-app: vmwarecollector-metrics
+          6fusion-app: metrics-collector
       spec:
         containers:
-        - name: vmware-collector-metrics
-          image: 6fusion/vmware-collector-metrics:alpha
+        - name: 6fusion-metrics-collector
+          image: 6fusion/vmware-collector:alpha
           imagePullPolicy: IfNotPresent
+          command:
+          - bin/metrics-collector.rb
           env:
+          - name: CONTAINER
+            value: metrics
           - name: VSPHERE_HOST
             valueFrom:
               secretKeyRef:
@@ -192,15 +251,10 @@ objects:
           volumeMounts:
           - name: vcenter-secret
             mountPath: /var/run/secrets/vmwarecollector/vsphere
-          - name: on-prem-secret
-            mountPath: /var/run/secrets/vmwarecollector/on-prem
         volumes:
         - name: vcenter-secret
           secret:
             secretName: vcenter-secret
-        - name: on-prem-secret
-          secret:
-            secretName: on-prem-secret
 parameters:
 #vSphere questions
 - description: "Host address of vCenter"
@@ -228,11 +282,11 @@ parameters:
   type: password
   description: "vCenter account password"
 - name: vcenter-descriptor
-  displayName: "vCenter Descriptor"
+  displayName: "vCenter Tag"
   section: vcenter-secret
   sectionDisplayName: vCenter
   type: string
-  description: "A short, descriptive name for the vCenter. Datacenters will be tagged with this prefix in the 6fusion Meter."
+  description: "A short, distinguishing tag for the vCenter"
 - name: ignore-ssl-errors
   section: vcenter-secret
   sectionDisplayName: vCenter
@@ -271,6 +325,8 @@ parameters:
   expandExpression: ${METER_API_PORT}
   advanced: true
 - name: api-protocol
+  displayName: "Meter API Protocol"
+  description: "Access the meter unencrypted, or through SSL"
   section: on-prem-secret
   sectionDisplayName: Meter
   type: enum

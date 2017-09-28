@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby -W0
+#!/usr/bin/env ruby
 require 'set'
 
 # load all required files
@@ -17,29 +17,25 @@ STDOUT.sync = true
 $logger = Logger.new(STDOUT)
 $logger.level = ENV['LOG_LEVEL'] || Logger::DEBUG
 
+# TODO consider moving this to an init container
 begin
   Mongoid::Tasks::Database::create_indexes
 rescue
   # indexes may already exist
 end
 
-scheduler_1m = Rufus::Scheduler.new(max_work_threads: 1)
 scheduler_5m = Rufus::Scheduler.new(max_work_threads: 1)
 
-$logger.info 'API syncronization scheduled to run every minute'
-on_prem_connector = OnPremConnector.new
-#scheduler_1m.every '1m' do
-t = Thread.new {
-  loop do
-    on_prem_connector.submit
-    sleep 60
-  end
-}
-#end
+def scheduler_5m.on_error(job, err)
+  $logger.error err.message
+  $logger.debug err.backtrace.join("\n")
+  exit(1)
+end
 
 $logger.info 'Inventory and Infrastructure scheduled to run every 5 minutes'
 inventory_collectors = Hash.new
 infrastructure_collector = InfrastructureCollector.new
+
 scheduler_5m.cron '*/5 * * * *' do |job|
   collection_time = Time.now.change(sec: 0)
 
@@ -49,10 +45,11 @@ scheduler_5m.cron '*/5 * * * *' do |job|
 
   inventory_collectors.each_value{|collector|
     collector.run(collection_time)}
+
   # TODO may want to move this above collection with different status; if we crash during a run and find_or_initailize_by (cf vmware meter)
   #  we could blow away that inventory and re-collect
   InventoriedTimestamp.create(inventory_at: collection_time, record_status: 'inventoried')
 
 end
 
-[scheduler_1m, scheduler_5m].map(&:join)
+scheduler_5m.join

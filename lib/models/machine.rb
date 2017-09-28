@@ -161,16 +161,14 @@ class Machine
 
   # Format to submit to OnPrem Console API
   def api_format
-    machine_api_format = {
-      'name': name,
-     'custom_id': uuid,
-     'cpu_count': cpu_count,
-     'cpu_speed_hz': cpu_speed_hz,
-     'memory_bytes': memory_bytes,
-     'status': status,
-     'infrastructure_id': infrastructure_custom_id,
-     'tags': tags
-    }
+    machine_api_format = { 'name': name,
+                           'custom_id': uuid,
+                           'cpu_count': cpu_count,
+                           'cpu_speed_hz': cpu_speed_hz,
+                           'memory_bytes': memory_bytes,
+                           'status': status,
+                           'tags': tags }
+#     'infrastructure_id': infrastructure_custom_id,
 
     # !!! Make sure if field is missing these won't blow up
     # For now, will reject disks and nics missing name (nil) -- may need to reject is missing other fields
