@@ -28,11 +28,11 @@ class OnPremConnector
     submit_infrastructure_creates
 #    handle_machine_failed_creates # Failed creates result from TimeOut errors; This must be BEFORE submit_machine_creates
     submit_machine_creates
+    submit_machine_updates
     submit_reading_creates
     submit_machine_disk_and_nic_deletes # Combined to go through documents with either or both changes once
     submit_machine_deletes
     submit_infrastructure_updates
-    submit_machine_updates
 
       # Currently handles Disk/Nic updates too
       # block while thread pool finishes?
@@ -54,31 +54,24 @@ class OnPremConnector
       $logger.debug 'No readings queued for submission'
     else
       $logger.info "Preparing to submit #{queued} readings"
-
       start = Time.now
-      # !! consider making this step one in a separate thread?
-      Reading.group_for_submission
 
       thread_pool = Concurrent::ThreadPoolExecutor.new(min_threads: 1,
                                                        max_threads: @max_threads,
                                                        max_queue: @max_threads * 2,
                                                        fallback_policy: :caller_runs)
+      hyperclient = HyperClient.new
 
-      MachineReading.no_timeout.each do |mr|
+      Reading.where(record_status: 'created').no_timeout.each do |reading|
         thread_pool.post do
           Thread.current.abort_on_exception = true
-        #   # In spite of the abort_on_exception above, a begin/rescue wrapper seems to be necessary to get
-          #   #  exceptions percolated outside of the thead pool into the main thread
+          # In spite of the abort_on_exception above, a begin/rescue wrapper seems to be necessary to get
+          #  exceptions percolated outside of the thead pool into the main thread
           begin
-            prep_and_post_reading(mr)
-          # rescue RestClient::TooManyRequests => e
-          #   # TODO: Not great having this in two places, but the alternative would be figure out the TODO below
-          #   #   and shutting down / reinitalizing the threadpool here
-          #   pause(Time.parse(e.response.headers[:x_rate_limit_reset]))
+            reading.post_to_api(hyperclient)
           rescue StandardError => e
             $logger.error "Raising #{e.class}: #{e.message}"
             # TODO: This doesn't seem to operate as desired; this seems to cause a jump to the "line" after the end of the "thread_pool do" code
-            #  Exception handling in the main function doesn't seem to execute right away either; not till the end of machinereading.each
             Thread.main.raise e
           end
         end
@@ -86,7 +79,7 @@ class OnPremConnector
       thread_pool.shutdown
       thread_pool.wait_for_termination
 
-      $logger.info "Completed submission of readings in #{Time.now - start} seconds"
+      $logger.info "Completed submission of #{queued} readings in #{Time.now - start} seconds"
     end
   end
 
@@ -160,8 +153,7 @@ class OnPremConnector
   end
 
   def submit_machine_updates
-#    if InventoriedTimestamp.most_recent
-      updated_machines = Machine.to_be_updated # (latest_inventory.inventory_at)
+      updated_machines = Machine.to_be_updated
       if !updated_machines.empty?
         $logger.info "Processing #{updated_machines.size} machines that have configuration updates for OnPrem"
       else
@@ -186,13 +178,16 @@ class OnPremConnector
           end
         rescue RestClient::TooManyRequests => e
           raise e
+        rescue RestClient::NotFound => e
+          $logger.warn "Updated machine #{e.platform_id} not found in API. Posting..."
+          updated_machine.submit_create
         rescue StandardError => e
           $logger.debug e.backtrace.join("\n")
           $logger.error "Error updating machine: #{e.message}"
+          raise e
         ensure
         end
       end
- #   end
   end
 
   def submit_infrastructure_updates

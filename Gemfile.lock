@@ -83,7 +83,7 @@ DEPENDENCIES
   activesupport (~> 4.0)
   bundler
   concurrent-ruby-ext
-  mongoid (~> 5.1)
+  mongoid (~> 5.2)
   nokogiri
   oauth2 (~> 1.0)
   pry
@@ -93,4 +93,4 @@ DEPENDENCIES
   rufus-scheduler (~> 3.0)
 
 BUNDLED WITH
-   1.14.6
+   1.15.1

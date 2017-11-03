@@ -1,14 +1,11 @@
 require 'uri'
 
-require 'global_configuration'
 require 'json'
 require 'rest_client_extensions'
 
 class HyperClient
-  include GlobalConfiguration
 
-  def initialize(configuration = GlobalConfiguration::GlobalConfig.instance)
-    @configuration = configuration
+  def initialize
     RestClient.proxy = api_proxy
   end
 
@@ -59,8 +56,7 @@ class HyperClient
     begin
       url, params = decode_url(url)
       merged_headers = headers.merge(params)
-      # FIXME
-      #merged_headers = merged_headers.merge(access_token: oauth_token) if oauth_token.present? && oauth_token != GlobalConfiguration::DEFAULT_EMPTY_VALUE
+      merged_headers = merged_headers.merge(access_token: oauth_token)
       wrapped_request { RestClient.head(url, params: merged_headers) }
     rescue RestClient::Unauthorized => e
       if first_attempt
@@ -92,11 +88,7 @@ class HyperClient
       url, params = decode_url(url)
       url += '.json' unless url.end_with?('.json')
       merged_headers = headers.merge(params).merge(accept: :json, content_type: :json)
-
-      # only merge the access token if it's empty
-      # FIXME
-      #merged_headers = merged_headers.merge(access_token: oauth_token) if oauth_token.present? && oauth_token != GlobalConfiguration::DEFAULT_EMPTY_VALUE
-      $logger.debug "Retrieving: #{url}, params: #{merged_headers}"
+      merged_headers = merged_headers.merge(access_token: oauth_token)
       wrapped_request { RestClient.get(url, params: merged_headers) }
     rescue RestClient::Unauthorized => e
       if first_attempt
@@ -257,57 +249,57 @@ class HyperClient
     # end
   end
 
-  def oauth_client
-    @oauth_client ||= begin
-      connection_opts = if @configuration.present_value?(:on_prem_proxy_host)
-                          {proxy: {uri: "#{@configuration[:on_prem_proxy_host]}:#{@configuration[:on_prem_proxy_port]}",
-                                   user: @configuration[:on_prem_proxy_user],
-                                   password: @configuration[:on_prem_proxy_password]}}
-                        else
-                          {}
-                        end
+  # def oauth_client
+  #   @oauth_client ||= begin
+  #     connection_opts = if @configuration.present_value?(:on_prem_proxy_host)
+  #                         {proxy: {uri: "#{@configuration[:on_prem_proxy_host]}:#{@configuration[:on_prem_proxy_port]}",
+  #                                  user: @configuration[:on_prem_proxy_user],
+  #                                  password: @configuration[:on_prem_proxy_password]}}
+  #                       else
+  #                         {}
+  #                       end
 
-      if @configuration.present_value?(:on_prem_refresh_token)
-        OAuth2::Client.new(nil, nil, site: @configuration[:on_prem_oauth_endpoint], connection_opts: connection_opts)
-      else
-        OAuth2::Client.new(@configuration[:on_prem_application_id],
-                           @configuration[:on_prem_application_secret],
-                           site: @configuration[:on_prem_oauth_endpoint],
-                           connection_opts: connection_opts)
-      end
-    end
-  end
+  #     if @configuration.present_value?(:on_prem_refresh_token)
+  #       OAuth2::Client.new(nil, nil, site: @configuration[:on_prem_oauth_endpoint], connection_opts: connection_opts)
+  #     else
+  #       OAuth2::Client.new(@configuration[:on_prem_application_id],
+  #                          @configuration[:on_prem_application_secret],
+  #                          site: @configuration[:on_prem_oauth_endpoint],
+  #                          connection_opts: connection_opts)
+  #     end
+  #   end
+  # end
 
-  def oauth_password_client
-    @oauth_password_client ||= begin
-      OAuth2::Client.new(@configuration[:on_prem_application_id],
-                         @configuration[:on_prem_application_secret],
-                         site: @configuration[:on_prem_oauth_endpoint],
-                         connection_opts: @configuration.present_value?(:on_prem_proxy_host) ?
-                             {proxy: {uri: "#{@configuration[:on_prem_proxy_host]}:#{@configuration[:on_prem_proxy_port]}",
-                                      user: @configuration[:on_prem_proxy_user],
-                                      password: @configuration[:on_prem_proxy_password]}} : {})
-    end
-  end
+  # def oauth_password_client
+  #   @oauth_password_client ||= begin
+  #     OAuth2::Client.new(@configuration[:on_prem_application_id],
+  #                        @configuration[:on_prem_application_secret],
+  #                        site: @configuration[:on_prem_oauth_endpoint],
+  #                        connection_opts: @configuration.present_value?(:on_prem_proxy_host) ?
+  #                            {proxy: {uri: "#{@configuration[:on_prem_proxy_host]}:#{@configuration[:on_prem_proxy_port]}",
+  #                                     user: @configuration[:on_prem_proxy_user],
+  #                                     password: @configuration[:on_prem_proxy_password]}} : {})
+  #   end
+  # end
 
-  def oauth_refreshtoken_client
-    @oauth_refreshtoken_client ||= begin
-      OAuth2::Client.new(nil, nil,
-                         site: @configuration[:on_prem_oauth_endpoint],
-                         connection_opts: @configuration.present_value?(:on_prem_proxy_host) ?
-                             {proxy: {uri: "#{@configuration[:on_prem_proxy_host]}:#{@configuration[:on_prem_proxy_port]}",
-                                      user: @configuration[:on_prem_proxy_user],
-                                      password: @configuration[:on_prem_proxy_password]}} : {})
+  # def oauth_refreshtoken_client
+  #   @oauth_refreshtoken_client ||= begin
+  #     OAuth2::Client.new(nil, nil,
+  #                        site: @configuration[:on_prem_oauth_endpoint],
+  #                        connection_opts: @configuration.present_value?(:on_prem_proxy_host) ?
+  #                            {proxy: {uri: "#{@configuration[:on_prem_proxy_host]}:#{@configuration[:on_prem_proxy_port]}",
+  #                                     user: @configuration[:on_prem_proxy_user],
+  #                                     password: @configuration[:on_prem_proxy_password]}} : {})
 
-    end
-  end
+  #   end
+  # end
 
   # Blank out the oauth token so a new request for one will be made
-  def reset_token
-    $logger.debug 'Resetting oauth token'
-    @oauth_token = nil
-    @configuration.delete(:on_prem_oauth_token)
-  end
+  # def reset_token
+  #   $logger.debug 'Resetting oauth token'
+  #   @oauth_token = nil
+  #   @configuration.delete(:on_prem_oauth_token)
+  # end
 
   private
   def api_proxy
@@ -352,31 +344,31 @@ class HyperClient
     response
   end
 
-  def refresh_token_from_refreshtoken
-    $logger.debug 'Attempting to refresh oauth token'
-    if @configuration.present_value?(:on_prem_refresh_token)
-      begin
-        token = OAuth2::AccessToken.from_hash(oauth_refreshtoken_client, refresh_token: @configuration[:on_prem_refresh_token])
-        token.refresh!
-      rescue OAuth2::Error => e
-        $logger.error 'Could not retrieve oauth token from OnPrem'
-        $logger.info e.message
-        $logger.debug e.backtrace.join("\n")
-        nil
-      end
-    end
-  end
+  # def refresh_token_from_refreshtoken
+  #   $logger.debug 'Attempting to refresh oauth token'
+  #   if @configuration.present_value?(:on_prem_refresh_token)
+  #     begin
+  #       token = OAuth2::AccessToken.from_hash(oauth_refreshtoken_client, refresh_token: @configuration[:on_prem_refresh_token])
+  #       token.refresh!
+  #     rescue OAuth2::Error => e
+  #       $logger.error 'Could not retrieve oauth token from OnPrem'
+  #       $logger.info e.message
+  #       $logger.debug e.backtrace.join("\n")
+  #       nil
+  #     end
+  #   end
+  # end
 
-  def refresh_token_from_credentials
-    $logger.debug "Attempting to refresh oauth token with credentials for #{@configuration[:on_prem_login_email]}"
+  # def refresh_token_from_credentials
+  #   $logger.debug "Attempting to refresh oauth token with credentials for #{@configuration[:on_prem_login_email]}"
 
-    if @configuration.present_value?(:on_prem_login_password)
-      oauth_password_client.password.get_token(@configuration[:on_prem_login_email],
-                                               @configuration[:on_prem_login_password],
-                                               scope: @configuration[:on_prem_api_scope])
-    else
-      $logger.error 'Cannot retrieve oauth token by credentials; not OnPrem login password available'
-      nil
-    end
-  end
+  #   if @configuration.present_value?(:on_prem_login_password)
+  #     oauth_password_client.password.get_token(@configuration[:on_prem_login_email],
+  #                                              @configuration[:on_prem_login_password],
+  #                                              scope: @configuration[:on_prem_api_scope])
+  #   else
+  #     $logger.error 'Cannot retrieve oauth token by credentials; not OnPrem login password available'
+  #     nil
+  #   end
+  # end
 end

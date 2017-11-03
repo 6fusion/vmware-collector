@@ -51,7 +51,8 @@ class MetricsCollector
     @readings.each { |r| r.end_time ||= collected_time }
     (machine_morefs - @readings.map(&:machine_platform_id)).each do |moref|
       machine = @local_inventory[moref]
-      next if machine.blank?
+      next if machine.blank? or machine.custom_id.blank?
+
       reading = Reading.new(machine_custom_id: machine.custom_id,
                             end_time: collected_time,
                             start_time: (collected_time - 5.minutes),

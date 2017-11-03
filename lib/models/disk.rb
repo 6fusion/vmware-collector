@@ -29,7 +29,6 @@ class Disk
   end
 
   def submit_delete(disk_endpoint)
-    $logger.debug "ignoring disk delete for #{disk_endpoint}"
     $logger.info "Deleting disk #{platform_id} for machine #{machine.platform_id} from OnPrem API, at disk_endpoint #{disk_endpoint}"
     begin
       status = 'deleted'

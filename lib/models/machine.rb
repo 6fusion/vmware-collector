@@ -198,7 +198,7 @@ class Machine
       rescue StandardError => e
         $logger.error "Error creating machine '#{name}' in 6fusion Meter API"
         $logger.debug e
-        raise
+        raise e
       end
     end
     self.save
@@ -206,12 +206,12 @@ class Machine
 
 
   def already_submitted?
-    $logger.info "Checking 6fusion Meter for #{self.name}:#{self.platform_id}"
+    $logger.debug "Checking 6fusion Meter for #{self.name}:#{self.platform_id}"
     begin
       response = hyper_client.head_machine(custom_id)
       response and (response.code == 200)
     rescue StandardError => e
-      $logger.error "Error checking whether already_submitted? for machine: #{self.platform_id}"
+      $logger.warn "Response for already_submitted? check for machine #{self.platform_id}: #{e.message}"
       $logger.debug e
       false
     end

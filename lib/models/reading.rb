@@ -70,23 +70,48 @@ class Reading
       reading.nic_metrics << { custom_id:         nic.custom_id,
                                receive_kilobits:  receive_kilobits,
                                transmit_kilobits: transmit_kilobits }
-    }
+     }
 
     reading
   end
 
   # Aggregate readings by machine, so that multiple readings can be submitted at once (per machine)
   #  The results of the aggregation can be accessed by the MachineReading model
-  def self.group_for_submission
-    Reading.collection.aggregate([ { '$match': { record_status: 'created'}},
-                                   { '$group': { '_id': { machine_custom_id: '$machine_custom_id',  },
-                                                 readings: { '$push': '$$CURRENT' } } },
-                                   { '$out':    'machine_readings' } ],
-                                 { allowDiskUse: true } ).all?  # FIXME I cannot get this aggregation to execute in a meaningful way w/o this undocumneted 'all?'
-  end
+  # def self.group_for_submission
+  #   Reading.collection.aggregate([ { '$match': { record_status: 'created'}},
+  #                                  { '$group': { '_id': { machine_custom_id: '$machine_custom_id',  },
+  #                                                readings: { '$push': '$$CURRENT' } } },
+  #                                  { '$out':    'machine_readings' } ],
+  #                                { allowDiskUse: true } ).all?  # FIXME I cannot get this aggregation to execute in a meaningful way w/o this undocumneted 'all?'
+  # end
 
   def self.metrics
     [machine_properties, disk_properties, nic_properties].flatten
+  end
+
+  def post_to_api(hyper_client)
+    status = 'submitted'
+    begin
+      response = hyper_client.post_samples(machine_custom_id, api_format)
+    rescue RestClient::Conflict => e
+      status = 'submitted_conflict'
+      $logger.warn "#{e.message} returned when posting samples."
+      $logger.info JSON.parse(e.response)['message']
+      $logger.debug api_format.to_json
+      $logger.debug e
+    rescue RestClient::BadRequest => e
+      # If we get a badrequest returned, might as well mark it submitted and move on, as there's no way it will ever stop being a bad request
+      status = 'submitted_bad_request'
+      $logger.error "#{e.message} returned when posting samples."
+      $logger.error JSON.parse(e.response)['message']
+      $logger.error JSON.parse(e.response)['errors']
+      $logger.debug api_format.to_json
+      $logger.debug e
+    end
+
+    self.update_attribute(:record_status, 'submitted')
+
+    (response && response.code == 200)
   end
 
   private
@@ -100,6 +125,21 @@ class Reading
 
   def self.nic_properties
     %w(net.received.average net.transmitted.average)
+  end
+
+  def api_format
+    {
+      start_time: start_time.iso8601,
+      end_time: end_time.iso8601,
+      machine: machine_metrics,
+      nics: (nic_metrics || []).map{|nm| { id: nm[:custom_id],
+                                           receive_bytes_per_second: (nm[:receive_kilobits] * 125),
+                                           transmit_bytes_per_second: (nm[:transmit_kilobits] * 125)} }.compact,
+      disks: (disk_metrics || []).map{|dm| { id: dm[:custom_id],
+                                             usage_bytes: dm[:usage_bytes],
+                                             read_bytes_per_second: (dm[:read_kilobytes] * 1000),
+                                             write_bytes_per_second: (dm[:write_kilobytes] * 1000)} }.compact
+     }
   end
 
 end

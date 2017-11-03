@@ -5,7 +5,7 @@ gem 'bundler'
 # meter requirements
 gem 'activesupport',   '~>4.0'
 gem 'concurrent-ruby-ext', require: 'concurrent'
-gem 'mongoid',         '~>5.1'
+gem 'mongoid',         '~>5.2'
 gem 'nokogiri'
 gem 'oauth2',          '~>1.0'
 gem 'rbvmomi',         '~>1.8'
