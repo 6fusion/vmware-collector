@@ -109,7 +109,10 @@ class Reading
       $logger.debug e
     end
 
-    self.update_attribute(:record_status, 'submitted')
+    #self.update_attribute(:record_status, 'submitted')
+    self.status = status
+    self.submitted_at = Time.now.utc
+    self.save
 
     (response && response.code == 200)
   end

@@ -70,10 +70,10 @@ class HyperClient
         retry
       end
     rescue RestClient::ResourceNotFound => e
-      $logger.info "#{e.message} for get request to #{url}"
+      $logger.info "#{e.message} for HEAD request to #{url}"
       nil
     rescue StandardError => e
-      $logger.error "#{e.message} for get request to #{url}"
+      $logger.error "#{e.message} for HEAD request to #{url}"
       $logger.error e.inspect
       $logger.debug merged_headers.to_json
       $logger.debug e
