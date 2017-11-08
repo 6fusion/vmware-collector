@@ -20,7 +20,7 @@ class Reading
 
   # Don't want to expire based on submitted, since if problem with OnPremConnector
   # The meter-database can exceed storage limits and crash all services
-  index({end_time: 1}, {expire_after_seconds: 30.hours})
+  index({end_time: 1}, {expire_after_seconds: 24.hours})
 
   scope :to_be_created, -> { where(record_status: 'created') }
 
