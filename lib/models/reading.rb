@@ -21,6 +21,7 @@ class Reading
   # Don't want to expire based on submitted, since if problem with OnPremConnector
   # The meter-database can exceed storage limits and crash all services
   index({end_time: 1}, {expire_after_seconds: 24.hours})
+  index({submitted_at: 1}, {expire_after_seconds: 1.hours})
 
   scope :to_be_created, -> { where(record_status: 'created') }
 
@@ -110,7 +111,7 @@ class Reading
     end
 
     #self.update_attribute(:record_status, 'submitted')
-    self.status = status
+    self.record_status = status
     self.submitted_at = Time.now.utc
     self.save
 
