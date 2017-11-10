@@ -178,9 +178,15 @@ class OnPremConnector
           end
         rescue RestClient::TooManyRequests => e
           raise e
-        rescue RestClient::NotFound => e
-          $logger.warn "Updated machine #{e.platform_id} not found in API. Posting..."
-          updated_machine.submit_create
+        rescue RestClient::ExceptionWithResponse => e
+          if e.response.code == 404
+            $logger.warn "Updated machine #{e.platform_id} not found in API. Posting..."
+            updated_machine.submit_create
+          else
+            $logger.error e.message
+            $logger.debug e.response.body
+            raise e
+          end
         rescue StandardError => e
           $logger.debug e.backtrace.join("\n")
           $logger.error "Error updating machine: #{e.message}"
