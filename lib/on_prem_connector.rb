@@ -180,7 +180,7 @@ class OnPremConnector
           raise e
         rescue RestClient::ExceptionWithResponse => e
           if e.response.code == 404
-            $logger.warn "Updated machine #{e.platform_id} not found in API. Posting..."
+            $logger.warn "Updated machine #{updated_machine.platform_id} not found in API. Posting..."
             updated_machine.submit_create
           else
             $logger.error e.message
@@ -427,9 +427,9 @@ class OnPremConnector
     api_machine.json if api_machine && api_machine.code == 200
   end
 
-  def machine_exists?(machine_reading)
-    machine_platform_id = machine_reading.id[:machine_platform_id]
-    deleted_machines = Machine.where(record_status: 'deleted').map(&:platform_id)
-    !deleted_machines.include?(machine_platform_id)
-  end
+  # def machine_exists?(machine_reading)
+  #   machine_platform_id = machine_reading.id[:machine_platform_id]
+  #   deleted_machines = Machine.where(record_status: 'deleted').map(&:platform_id)
+  #   !deleted_machines.include?(machine_platform_id)
+  # end
 end
