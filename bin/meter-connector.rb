@@ -13,9 +13,10 @@ max_threads = Integer(ENV['METER_API_THREADS'] || 10)
 thread_pool = Concurrent::ThreadPoolExecutor.new(min_threads: 1, max_threads: max_threads, max_queue: max_threads * 2, fallback_policy: :caller_runs)
 Machine.distinct(:uuid).each do |machine|
   thread_pool.post { machine.submit_create unless machine.already_submitted? }
-  thread_pool.shutdown
-  thread_pool.wait_for_termination
 end
+
+thread_pool.shutdown
+thread_pool.wait_for_termination
 
 
 $logger.info 'API syncronization scheduled to run every 30 seconds'
