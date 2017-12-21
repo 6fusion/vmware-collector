@@ -49,6 +49,7 @@ class Machine
   index({ platform_id: 1 })
   # Expiration
   index({inventory_at: 1}, {expire_after_seconds: 1.days })
+  index({uuid: 1})
 
   def self.to_be_updated
     most_recent_updates = Machine.collection.aggregate( [ {
