@@ -12,7 +12,7 @@ $logger.info 'Ensuring local inventory is syncronized with API'
 max_threads = Integer(ENV['METER_API_THREADS'] || 10)
 thread_pool = Concurrent::ThreadPoolExecutor.new(min_threads: 1, max_threads: max_threads, max_queue: max_threads * 2, fallback_policy: :caller_runs)
 Machine.distinct(:uuid).each do |uuid|
-  machine = Machine.where({uuid: uuid}).first
+  machine = Machine.find_by(uuid: uuid)
   thread_pool.post { machine.submit_create }
 end
 
