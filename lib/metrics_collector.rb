@@ -18,7 +18,7 @@ class MetricsCollector
     confirm_statistics_level
   end
 
-  def run(inventoried_time, morefs_to_meter = [])
+  def run(inventoried_time, morefs_to_meter = filtered_inventory_morefs)
     confirm_statistics_level
     machine_morefs = []
 
@@ -26,10 +26,10 @@ class MetricsCollector
     collected_time = time_to_query
     @local_inventory.set_to_time(time_to_query)
     # If no morefs were passed in, use all inventory morefs present for the desired timestamp
-    machine_morefs = morefs_to_meter.blank? ? filtered_inventory_morefs : morefs_to_meter
+#    machine_morefs = morefs_to_meter.blank? ? filtered_inventory_morefs : morefs_to_meter
     morefs_present_in_results = []
     $logger.info "Collecting consumption metrics for machines inventoried at #{time_to_query}"
-    machine_morefs.each_slice(configuration[:vsphere_readings_batch_size].to_i / 6).each do |morefs|
+    morefs_to_meter.each_slice(configuration[:vsphere_readings_batch_size].to_i / 6).each do |morefs|
       $logger.debug "Collecting metrics for #{morefs.size} machines"
       results = custom_retrieve_stats(morefs,
                                       Reading.metrics,
@@ -115,7 +115,7 @@ class MetricsCollector
 
   def filtered_inventory_morefs
     @local_inventory.select do |_platform_id, machine|
-      machine.record_status != 'incomplete'
+      machine.valid?
     end.keys
   end
 

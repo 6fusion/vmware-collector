@@ -5,17 +5,9 @@ require 'set'
 require './config/default_includes'
 
 # load required executables for making the collector to work properly
-require_relative 'executables/inventory'
-require_relative 'executables/infrastructure'
-require_relative 'executables/api_sync'
-require_relative 'executables/missing_readings'
-require_relative 'executables/missing_readings_cleaner'
+# require_relative 'executables/inventory'
+# require_relative 'executables/infrastructure'
 
-
-Mongoid.load!('config/mongoid.yml', :default)
-STDOUT.sync = true
-$logger = Logger.new(STDOUT)
-$logger.level = ENV['LOG_LEVEL'] || Logger::DEBUG
 
 # TODO consider moving this to an init container
 begin

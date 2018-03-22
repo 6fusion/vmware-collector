@@ -12,46 +12,19 @@ class HyperClient
   def get_infrastructure(id)
     get("#{api_endpoint}/infrastructures/#{id}")
   end
-  def head_infrastructure(id)
-    head("#{api_endpoint}/infrastructures/#{id}")
-  end
-  
-  def get_machines(infrastructure_id: nil, url: nil)
-    infrastructure_id ?
-      get("#{api_endpoint}/machines?infrastructure_id=#{infrastructure_id}") :
-      get(url)
-  end
-  def head_machine(id)
-    head("#{api_endpoint}/machines/#{id}")
-  end
-  def put_machine(machine_json)
-    put("#{api_endpoint}/machines/#{machine_json[:custom_id]}", machine_json)
-  end
 
-  def post_samples(machine_id, samples_json)
-    post("#{api_endpoint}/machines/#{machine_id}/samples", samples_json)
+  # HEAD
+  def head(item)
+    case
+    when item.is_a?(Infrastructure) then head_infrastructure(item.custom_id)
+    when item.is_a?(Machine) then head_machine(item.custom_id)
+    end
   end
+  def head_infrastructure(id); do_head("#{api_endpoint}/infrastructures/#{id}"); end
+  def head_machine(id); do_head("#{api_endpoint}/machines/#{id}"); end
 
-  def post_disk(machine_id, disk_json)
-    post("#{api_endpoint}/machines/#{machine_id}/disks", disk_json)
-  end
-  def put_disk(disk_json)
-    put("#{api_endpoint}/disks/#{disk_json[:custom_id]}", disk_json)
-  end
-  def post_nic(machine_id, nic_json)
-    post("#{api_endpoint}/machines/#{machine_id}/nics", nic_json)
-  end
-  def put_nic(nic_json)
-    put("#{api_endpoint}/nics/#{nic_json[:custom_id]}", nic_json)
-  end
-
-  def decode_url(url)
-    params = ''
-    url, params = url.split('?') if url.include?('?')
-    [url, URI.decode_www_form(params).to_h]
-  end
-
-  def head(url, headers = {})
+  # TODO genericize with other CRUD methods? becomes "do(:head)" ?
+  def do_head(url, headers = {})
     first_attempt = true
     begin
       url, params = decode_url(url)
@@ -81,6 +54,77 @@ class HyperClient
     end
   end
   
+
+  # POST
+  def post(item)
+    case
+    when item.is_a?(Infrastructure) then post_infrastructure(item)
+    when item.is_a?(Machine) then post_machine(item)
+    end
+  end
+  def post_infrastructure(infrastructure)
+    do_post("#{api_endpoint}/organizations/#{organization_id}/infrastructures", infrastructure.api_format)
+  end
+  def post_samples(machine_id, samples_json)
+    do_post("#{api_endpoint}/machines/#{machine_id}/samples", samples_json)
+  end
+  def post_disk(machine_id, disk_json)
+    do_post("#{api_endpoint}/machines/#{machine_id}/disks", disk_json)
+  end
+  def put_disk(disk_json)
+    put("#{api_endpoint}/disks/#{disk_json[:custom_id]}", disk_json)
+  end
+  def post_nic(machine_id, nic_json)
+    do_post("#{api_endpoint}/machines/#{machine_id}/nics", nic_json)
+  end
+  def do_post(url, headers = {})
+    first_attempt = true
+    begin
+      merged_headers = headers.merge(access_token: oauth_token)
+      $logger.debug "Posting: #{url}, params: #{merged_headers}"
+      wrapped_request { RestClient.post(url, merged_headers.to_json, accept: :json, content_type: :json) }
+    rescue RestClient::Unauthorized => e
+      if first_attempt
+        first_attempt = false
+        reset_token
+        retry
+      end
+    rescue RestClient::RequestTimeout => e
+      if first_attempt
+        first_attempt = false
+        retry
+      end
+    rescue StandardError => e
+      $logger.error "#{e.message} for POST to #{url}"
+      $logger.debug merged_headers
+      $logger.debug e.inspect
+      raise e
+    end
+  end
+
+
+
+
+  def get_machines(infrastructure_id: nil, url: nil)
+    infrastructure_id ?
+      get("#{api_endpoint}/machines?infrastructure_id=#{infrastructure_id}") :
+      get(url)
+  end
+  def put_machine(machine_json)
+    put("#{api_endpoint}/machines/#{machine_json[:custom_id]}", machine_json)
+  end
+
+  def put_nic(nic_json)
+    put("#{api_endpoint}/nics/#{nic_json[:custom_id]}", nic_json)
+  end
+
+  def decode_url(url)
+    params = ''
+    url, params = url.split('?') if url.include?('?')
+    [url, URI.decode_www_form(params).to_h]
+  end
+
+
 
   def get(url, headers = {})
     first_attempt = true
@@ -113,30 +157,6 @@ class HyperClient
     end
   end
 
-  def post(url, headers = {})
-    first_attempt = true
-    begin
-      merged_headers = headers.merge(access_token: oauth_token)
-      $logger.debug "Posting: #{url}, params: #{merged_headers}"
-      wrapped_request { RestClient.post(url, merged_headers.to_json, accept: :json, content_type: :json) }
-    rescue RestClient::Unauthorized => e
-      if first_attempt
-        first_attempt = false
-        reset_token
-        retry
-      end
-    rescue RestClient::RequestTimeout => e
-      if first_attempt
-        first_attempt = false
-        retry
-      end
-    rescue StandardError => e
-      $logger.error "#{e.message} for post request to #{url}"
-      $logger.debug merged_headers
-      $logger.debug e.inspect
-      raise e
-    end
-  end
 
   def put(url, headers = {})
     first_attempt = true
@@ -210,6 +230,10 @@ class HyperClient
     end
 
     all_json_data
+  end
+
+  def organization_id
+    @organization_id ||= ENV['ON_PREM_ORGANIZATION_ID']
   end
 
   def oauth_token

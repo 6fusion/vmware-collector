@@ -3,6 +3,7 @@ require 'disk'
 require 'nic'
 require 'matchable'
 require 'on_prem_url_generator'
+require 'meter_object'
 
 class Machine
   include Mongoid::Document
@@ -10,6 +11,7 @@ class Machine
   include Matchable
   include OnPremUrlGenerator
   include GlobalConfiguration
+  include MeterObject
 
   field :remote_id,     type: String
   field :platform_id,   type: String
@@ -36,6 +38,11 @@ class Machine
   embeds_many :disks
   embeds_many :nics
   accepts_nested_attributes_for :disks, :nics
+
+  validates :disks, presence: true
+  validates :nics, presence: true
+  validates :name, presence: true
+  validate :complete?
 
   scope :to_be_created, -> { where(record_status: 'created') }
   scope :to_be_deleted, -> { where(record_status: 'updated').and(status: 'deleted') }
@@ -169,9 +176,7 @@ class Machine
                            'memory_bytes': memory_bytes,
                            'status': status,
                            'tags': tags }
-#     'infrastructure_id': infrastructure_custom_id,
 
-    # !!! Make sure if field is missing these won't blow up
     # For now, will reject disks and nics missing name (nil) -- may need to reject is missing other fields
     # May need to just refactor to not submit disks/nics at all with machine updates
     # Instead, submit to their own endpoint (and no longer nest under Machines)
@@ -182,7 +187,7 @@ class Machine
   end
 
   def submit_create
-    if already_submitted?
+    if already_submitted?{ hyper_client.head_machine(custom_id) }
       self.record_status = 'updated'
     else
       begin
@@ -203,19 +208,6 @@ class Machine
       end
     end
     self.save
-  end
-
-
-  def already_submitted?
-    $logger.debug "Checking 6fusion Meter for #{self.name}:#{self.platform_id}"
-    begin
-      response = hyper_client.head_machine(custom_id)
-      response and (response.code == 200)
-    rescue StandardError => e
-      $logger.warn "Response for already_submitted? check for machine #{self.platform_id}: #{e.message}"
-      $logger.debug e
-      false
-    end
   end
 
   def submit_delete(machine_endpoint)
@@ -327,5 +319,9 @@ class Machine
 
   def hyper_client
     @hyper_client ||= HyperClient.new
+  end
+
+  def complete?
+    record_status != 'incomplete'
   end
 end

@@ -11,7 +11,7 @@ class Nic
   field :platform_id, type: String
   #field :custom_id, type: String
   field :record_status, type: String
-  field :name, type: String
+  field :name, type: String, default: 'NIC'
   field :kind, type: String, default: 'lan'
   field :ip_address, type: String
   field :mac_address, type: String

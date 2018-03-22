@@ -10,7 +10,6 @@ class InfrastructureCollector
                        :os_version, :os_vendor, :inventory]
   def initialize
     $logger.info { 'Initializing infrastructure collector' }
-
     @local_inventory = InfrastructureInventory.new
     @vcenter_id = ""
     VSphere.wrapped_vsphere_request do
@@ -21,14 +20,14 @@ class InfrastructureCollector
 
     @infrastructure_volumes = {}
     @hosts = {}
-    @clusters = {} # Map ClusterComputeResource.moref => cluster_properties
+    @clusters = {}          # Map ClusterComputeResource.moref => cluster_properties
     @host_bus_adapters = {} # Map HostStorageSystem.moref => array host_bus_adapters
-    @nics = {} # Map HostNetworkSystem.moref => array nics
+    @nics = {}              # Map HostNetworkSystem.moref => array nics
     @version = ''
   end
 
   def run
-    $logger.info { 'Checking for updates to infrastructure' }
+    $logger.info { 'Checking for data center updates' }
     update = false
     begin
       results = VSphere.wrapped_vsphere_request do
@@ -36,6 +35,7 @@ class InfrastructureCollector
                                                            options: {maxWaitSeconds: 0})
       end
       while results
+
         update = true
         # Collect attributes in hashes before building host objects and mapping (cluster name, host_bus_adapters)
         results.filterSet.each do |fs|
@@ -47,16 +47,13 @@ class InfrastructureCollector
           end # Store Host level attributes in a hash
 
           # Collect cluster names, needed as host property
-          object_set.select { |os| os.obj.is_a?(RbVmomi::VIM::ClusterComputeResource) }.each do |os|
-            @clusters[os.moref] = os.cluster_properties
-          end
+          object_set.select{|os| os.obj.is_a?(RbVmomi::VIM::ClusterComputeResource) }.each{|os|
+            @clusters[os.moref] = os.cluster_properties }
+          object_set.select{|os| os.obj.is_a?(RbVmomi::VIM::HostStorageSystem) }.each{|os|
+            @host_bus_adapters[os.moref] = os.host_bus_adapters }
+          object_set.select{|os| os.obj.is_a?(RbVmomi::VIM::HostNetworkSystem) }.each{|os|
+            @nics[os.moref] = os.nics }
 
-          object_set.select { |os| os.obj.is_a?(RbVmomi::VIM::HostStorageSystem) }.each do |os|
-            @host_bus_adapters[os.moref] = os.host_bus_adapters
-          end
-          object_set.select { |os| os.obj.is_a?(RbVmomi::VIM::HostNetworkSystem) }.each do |os|
-            @nics[os.moref] = os.nics
-          end
         end
         @version = results.version
 
@@ -73,6 +70,8 @@ class InfrastructureCollector
         raise e
       end
     end
+
+
     if update
     # Re-set host cluster (moref -> name)
       @host_objects = {}

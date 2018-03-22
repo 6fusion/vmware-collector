@@ -4,7 +4,7 @@ default: &default
     default:
       database: 6fusion
       hosts:
-        - <%= "#{ENV['MONGODB_SERVICE_HOST'] || 'localhost'}:#{ENV['MONGODB_SERVICE_PORT'] || '27017'}" %>
+        - localhost:27017
       options:
         max_pool_size: 20
 

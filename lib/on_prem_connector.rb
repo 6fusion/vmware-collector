@@ -20,7 +20,7 @@ class OnPremConnector
     $logger.info 'Initializing OnPrem Connector'
     @hyper_client = HyperClient.new
     @local_infrastructure_inventory = InfrastructureInventory.new(:name)
-    @max_threads = Integer(ENV['METER_API_THREADS'] || 10)
+    @max_threads = Integer(ENV['METER_API_THREADS'] || 20)
   end
 
   def submit

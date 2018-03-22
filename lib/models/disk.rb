@@ -11,7 +11,7 @@ class Disk
 
   field :record_status, type: String
   field :status, type: String, default: 'active'
-  field :name, type: String
+  field :name, type: String, default: 'Hard Disk'
   field :type, type: String, default: 'disk'
   field :size, type: Integer
   field :key,  type: Integer
@@ -57,7 +57,7 @@ class Disk
       "id": custom_id,
      "custom_id": custom_id,
      "name": name,
-     "storage_bytes": size || 0, # Default to 0 if nil, otherwise API throws error
+     "storage_bytes": size || 0, # Default to 0 if nil, otherwise UC6 API throws error
      "kind": type,
      "status": status
     }

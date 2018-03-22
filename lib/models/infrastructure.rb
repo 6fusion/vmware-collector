@@ -4,6 +4,7 @@ require 'infrastructure_collector'
 require 'matchable'
 require 'network'
 require 'on_prem_url_generator'
+require 'meter_object'
 
 class Infrastructure
   include Mongoid::Document
@@ -11,6 +12,7 @@ class Infrastructure
   include Matchable
   include GlobalConfiguration
   include OnPremUrlGenerator
+  include MeterObject
 
   field :platform_id, type: String
   field :moref, type: String
@@ -51,44 +53,14 @@ class Infrastructure
     [:name, :platform_id]
   end
 
-
-  def already_submitted?
-    $logger.info "Checking 6fusion Meter for infrastructure #{self.custom_id}"
-    begin
-      response = hyper_client.head_infrastructure(custom_id)
-      response and (response.code == 200)
-    rescue StandardError => e
-      $logger.error "Error checking whether already_submitted? for machine: #{self.custom_id}"
-      $logger.debug e
-      false
-    end
-  end
-
-
   def submit_create
     if already_submitted?
-      $logger.debug "Infrastructure #{self.custom_id} already present in the Meter API"
+      $logger.debug { "Infrastructure #{self.custom_id} already present in the 6fusion Meter" }
       self.record_status = 'updated'
     else
-      begin
-        $logger.info "Creating infrastructure #{name} in 6fusion Meter API"
-        response = hyper_client.post(infrastructures_post_url, api_format)
-        if response && response.code == 200
-          self.remote_id = response.json['id']
-          update_attribute(:record_status, 'verified_create') # record_status will be ignored by local_inventory class, so we need to update it "manually"
-        else
-          $logger.error "Unable to create infrastructure in the 6fusion Meter API for #{name}"
-          $logger.debug "API reponse: #{response}"
-        end
-      rescue StandardError => e
-        $logger.error "Error creating infrastructure in the 6fusion Meter API for #{name}"
-        $logger.error e.message
-        $logger.debug e
-        raise
-      end
+      post_to_api
+      self
     end
-    self.save
-    self
   end
 
   def submit_update
@@ -118,10 +90,6 @@ class Infrastructure
       end
       h
     end
-  end
-
-  def hyper_client
-    @hyper_client ||= HyperClient.new
   end
 
   def name_with_prefix
