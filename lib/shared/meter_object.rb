@@ -14,19 +14,24 @@ module MeterObject
 
   def post_to_api
     begin
-      $logger.info { "Creating #{self.class}: #{self.name}/#{self.custom_id} in 6fusion Meter" }
-      response = $hyper_client.post(self)
-      self.remote_id = response.json['id']
-      # TODO is this the best place for this? Maybe more of a controller op?
-      #update_attribute(:record_status, 'verified_create') # record_status will be ignored by local_inventory class, so we need to update it "manually"
-      self.record_status = 'verified_create'
-      self.save
+      if already_submitted?{ hyper_client.head_machine(custom_id) }
+        self.update_attribute(:record_status, 'updated')
+      else
+        $logger.info { "Creating #{self.class}: #{self.name}/#{self.custom_id} in 6fusion Meter" }
+        response = $hyper_client.post(self)
+        #self.remote_id = response.json['id']
+        # TODO is this the best place for this? Maybe more of a controller op?
+        #update_attribute(:record_status, 'verified_create') # record_status will be ignored by local_inventory class, so we need to update it "manually"
+        self.record_status = 'verified_create'
+        self.save
+      end
     rescue => e
       $logger.error { "Error creating #{self.class} #{self.custom_id} in the 6fusion Meter API" }
       $logger.error { e.message }
       $logger.debug { e.backtrace[0..20].join("\n") }
       raise
     end
+    self
   end
 
 end

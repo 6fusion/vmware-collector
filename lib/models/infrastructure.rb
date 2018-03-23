@@ -56,17 +56,17 @@ class Infrastructure
   def submit_create
     if already_submitted?
       $logger.debug { "Infrastructure #{self.custom_id} already present in the 6fusion Meter" }
-      self.record_status = 'updated'
+      self.update_attribute(:record_status, 'updated')
     else
       post_to_api
-      self
     end
+    self
   end
 
   def submit_update
     $logger.info "Updating infrastructure #{name} in 6fusion Meter API"
     begin
-      response = hyper_client.put(infrastructure_url(infrastructure_id: custom_id), api_format.merge(status: 'Active'))
+      response = $hyper_client.put(infrastructure_url(infrastructure_id: custom_id), api_format.merge(status: 'Active'))
       response_json = response.json
       if (response.present? && response.code == 200 && response_json['id'].present?)
         self.record_status = 'verified_update'

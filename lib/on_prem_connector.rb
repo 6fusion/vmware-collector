@@ -26,13 +26,13 @@ class OnPremConnector
   def submit
     Mongoid::QueryCache.clear_cache # rethink if we start using this in other places
     submit_infrastructure_creates
+    submit_infrastructure_updates
 #    handle_machine_failed_creates # Failed creates result from TimeOut errors; This must be BEFORE submit_machine_creates
     submit_machine_creates
     submit_machine_updates
     submit_reading_creates
     submit_machine_disk_and_nic_deletes # Combined to go through documents with either or both changes once
     submit_machine_deletes
-    submit_infrastructure_updates
 
       # Currently handles Disk/Nic updates too
       # block while thread pool finishes?
@@ -89,9 +89,8 @@ class OnPremConnector
       $logger.debug 'No new infrastructures to submit to OnPrem'
     else
       @local_infrastructure_inventory = InfrastructureInventory.new(:name)
-
       infrastructure_creates.each do |infrastructure|
-        infrastructure = infrastructure.submit_create
+        infrastructure.submit_create
         @local_infrastructure_inventory[infrastructure.name] = infrastructure
       end
       # Batch save local inventories
@@ -176,6 +175,8 @@ class OnPremConnector
           else
             $logger.error "Machine #{submitted_machine.name}/#{submitted_machine.platform_id} not updated."
           end
+        rescue RestClient::ResourceNotFound => e
+          updated_machine.submit_create
         rescue RestClient::TooManyRequests => e
           raise e
         rescue RestClient::ExceptionWithResponse => e
@@ -213,6 +214,8 @@ class OnPremConnector
           else
             $logger.error "Infrastructure #{submitted_infrastructure.name}/#{submitted_infrastructure.platform_id} not updated."
           end
+        rescue RestClient::ResourceNotFound => e
+          updated_infrastructure.submit_create
         rescue RestClient::TooManyRequests => e
           raise e
         rescue StandardError => e

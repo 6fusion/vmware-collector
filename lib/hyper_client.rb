@@ -65,6 +65,9 @@ class HyperClient
   def post_infrastructure(infrastructure)
     do_post("#{api_endpoint}/organizations/#{organization_id}/infrastructures", infrastructure.api_format)
   end
+  def post_machine(machine)
+    do_post("#{api_endpoint}/infrastructures/#{machine.infrastructure_custom_id}/machines", machine.api_format)
+  end
   def post_samples(machine_id, samples_json)
     do_post("#{api_endpoint}/machines/#{machine_id}/samples", samples_json)
   end
