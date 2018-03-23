@@ -2,11 +2,6 @@
 require './config/default_includes'
 Thread.abort_on_exception = true
 
-Mongoid.load!('config/mongoid.yml', :default)
-$logger = Logger.new(STDOUT)
-$logger.level = ENV['LOG_LEVEL'] || Logger::INFO
-STDOUT.sync = true
-
 $logger.info { 'Metrics collector will check for new inventory every 30 seconds' }
 collector = MetricsCollector.new
 loop do

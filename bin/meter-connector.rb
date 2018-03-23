@@ -2,10 +2,6 @@
 require './config/default_includes'
 
 Thread.abort_on_exception = true
-Mongoid.load!('config/mongoid.yml', :default)
-$logger = Logger.new(STDOUT)
-$logger.level = ENV['LOG_LEVEL'] || Logger::INFO
-STDOUT.sync = true
 
 # This is an attempt to add some resiliency if we crash to do machine state not mirror what's in the API
 $logger.info 'Ensuring local inventory is syncronized with API'
