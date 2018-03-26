@@ -30,13 +30,7 @@ class HyperClient
       url, params = decode_url(url)
       merged_headers = headers.merge(params)
       merged_headers = merged_headers.merge(access_token: oauth_token)
-      wrapped_request { RestClient.head(url, params: merged_headers) }
-    rescue RestClient::Unauthorized => e
-      if first_attempt
-        first_attempt = false
-        reset_token
-        retry
-      end
+      RestClient.head(url, params: merged_headers)
     rescue RestClient::RequestTimeout => e
       if first_attempt
         first_attempt = false
@@ -74,9 +68,6 @@ class HyperClient
   def post_disk(machine_id, disk_json)
     do_post("#{api_endpoint}/machines/#{machine_id}/disks", disk_json)
   end
-  def put_disk(disk_json)
-    put("#{api_endpoint}/disks/#{disk_json[:custom_id]}", disk_json)
-  end
   def post_nic(machine_id, nic_json)
     do_post("#{api_endpoint}/machines/#{machine_id}/nics", nic_json)
   end
@@ -85,13 +76,7 @@ class HyperClient
     begin
       merged_headers = headers.merge(access_token: oauth_token)
       $logger.debug "Posting: #{url}, params: #{merged_headers}"
-      wrapped_request { RestClient.post(url, merged_headers.to_json, accept: :json, content_type: :json) }
-    rescue RestClient::Unauthorized => e
-      if first_attempt
-        first_attempt = false
-        reset_token
-        retry
-      end
+      RestClient.post(url, merged_headers.to_json, accept: :json, content_type: :json)
     rescue RestClient::RequestTimeout => e
       if first_attempt
         first_attempt = false
@@ -105,20 +90,25 @@ class HyperClient
     end
   end
 
-
-
-
-  def get_machines(infrastructure_id: nil, url: nil)
-    infrastructure_id ?
-      get("#{api_endpoint}/machines?infrastructure_id=#{infrastructure_id}") :
-      get(url)
+  def patch(item)
+    case
+    when item.is_a?(Infrastructure) then patch_infrastructure(item)
+    when item.is_a?(Machine) then patch_machine(item)
+    end
   end
-  def put_machine(machine_json)
-    put("#{api_endpoint}/machines/#{machine_json[:custom_id]}", machine_json)
+  def patch_infrastructure(item)
+    do_patch("#{api_endpoint}/infrastructures/#{item.custom_id}", item.api_format)
+  end
+  def patch_machine(item)
+    do_patch("#{api_endpoint}/machines/#{item.custom_id}", item.api_format)
   end
 
+  # put: misnamed a bit...
+  def put_disk(disk_json)
+    do_patch("#{api_endpoint}/disks/#{disk_json[:custom_id]}", disk_json)
+  end
   def put_nic(nic_json)
-    put("#{api_endpoint}/nics/#{nic_json[:custom_id]}", nic_json)
+    do_patch("#{api_endpoint}/nics/#{nic_json[:custom_id]}", nic_json)
   end
 
   def decode_url(url)
@@ -137,12 +127,6 @@ class HyperClient
       merged_headers = headers.merge(params).merge(accept: :json, content_type: :json)
       merged_headers = merged_headers.merge(access_token: oauth_token)
       wrapped_request { RestClient.get(url, params: merged_headers) }
-    rescue RestClient::Unauthorized => e
-      if first_attempt
-        first_attempt = false
-        reset_token
-        retry
-      end
     rescue RestClient::RequestTimeout => e
       if first_attempt
         first_attempt = false
@@ -161,12 +145,12 @@ class HyperClient
   end
 
 
-  def put(url, headers = {})
+  def do_patch(url, headers = {})
     first_attempt = true
     begin
       merged_headers = headers.merge(access_token: oauth_token)
       $logger.debug "Putting: #{url}, params: #{merged_headers}"
-      wrapped_request { RestClient.put(url, merged_headers.to_json, content_type: :json, accept: :json) }
+     RestClient.patch(url, merged_headers.to_json, content_type: :json, accept: :json)
     rescue RestClient::Unauthorized => e
       if first_attempt
         first_attempt = false

@@ -187,65 +187,18 @@ class Machine
     machine_api_format
   end
 
-  def submit_create
-    post_to_api
-    # else
-    #   begin
-    #     response = post_to_api #$hyper_client.post(machines_post_url(infrastructure_id: infrastructure_custom_id), api_format)
-    #     if (response && response.code == 200 && response.json['id'])
-    #       self.remote_id = response.json['id']
-
-          # Machine create (POST) doesn't return remote_ids for disks and nics
-          # So, do additional request here and map disk/nic remote_ids back to self
-          # assign_disks_nics_remote_ids(self.remote_id)
-    #       self.submitted_at = Time.now.utc
-    #       self.record_status = 'verified_create'
-    #     end
-    #   rescue StandardError => e
-    #     $logger.error "Error creating machine '#{name}' in 6fusion Meter API"
-    #     $logger.debug e
-    #     raise e
-    #   end
-    # end
-    # self.save
-  end
-
   def submit_delete(machine_endpoint)
-    $logger.info "Deleting machine #{name} from OnPrem API"
+    $logger.info "Deleting machine #{name} from The 6fusion Meter"
     begin
       response = $hyper_client.put(machine_endpoint, api_format)
       self.record_status = 'deleted' if (response.code == 200 || response.code == 404)
     rescue StandardError => e
-      $logger.error "Error deleting machine '#{name} from OnPrem API"
+      $logger.error "Error deleting machine '#{name} from The 6fusion Meter"
       $logger.debug e.backtrace.join("\n")
       raise e
     end
   end
 
-  def submit_update(machine_endpoint)
-    $logger.info "Updating machine #{name} in OnPrem API"
-    begin
-      response = $hyper_client.put(machine_endpoint, api_format)
-      response_json = response.json
-      if (response.present? && response.code == 200 && response_json['id'].present?)
-        # machine_with_disks_nics_response = $hyper_client.get(machine_endpoint, {"expand": "disks,nics"})
-        # response_json = machine_with_disks_nics_response.json # Note: response#json populates remote_ids
-
-        # response_disks_json = response_json['embedded']['disks']
-#        assign_disk_remote_ids(response_disks_json) if response_disks_json
-
-        # response_nics_json = response_json['embedded']['nics']
-        # assign_nic_remote_ids(response_nics_json) if response_nics_json
-
-        self.update_attribute(:record_status, 'verified_update')
-      end
-    rescue StandardError => e
-      $logger.error "Error updating machine #{name} in API"
-      raise e
-    end
-
-    self
-  end
 
 
   def merge(other)

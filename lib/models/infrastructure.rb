@@ -53,16 +53,6 @@ class Infrastructure
     [:name, :platform_id]
   end
 
-  def submit_create
-    if already_submitted?
-      $logger.debug { "Infrastructure #{self.custom_id} already present in the 6fusion Meter" }
-      self.update_attribute(:record_status, 'updated')
-    else
-      post_to_api
-    end
-    self
-  end
-
   def submit_update
     $logger.info "Updating infrastructure #{name} in 6fusion Meter API"
     begin
@@ -72,7 +62,7 @@ class Infrastructure
         self.record_status = 'verified_update'
       end
     rescue RuntimeError => e
-      $logger.error "Error updating infrastructure '#{name} in the 6fusion Meter API"
+      $logger.error "Error updating infrastructure '#{name}' in the 6fusion Meter"
       raise e
     end
     self
@@ -103,23 +93,6 @@ class Infrastructure
       name: name_with_prefix,
       custom_id: custom_id,
       tags: tags,
-      # summary: {
-      #   # Counts
-      #   hosts: hosts.size,
-      #   networks: networks.size,
-      #   volumes: volumes.size,
-
-      #   # Sums
-      #   sockets: total_sockets,
-      #   cores: total_cpu_cores,
-      #   threads: total_threads,
-      #   speed_mhz: total_cpu_mhz,
-      #   memory_bytes: total_memory,
-      #   storage_bytes: total_storage_bytes,
-      #   lan_bandwidth_mbits: total_lan_bandwidth_mbits,
-      #   wan_bandwidth_mbits: 0
-      # },
-
       # Nested models
       hosts: hosts.map(&:api_format),
       networks: networks_with_defaults,
