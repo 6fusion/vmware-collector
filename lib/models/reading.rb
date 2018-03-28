@@ -18,6 +18,8 @@ class Reading
 
   index({ record_status: 1 })
 
+  validates :machine_custom_id, presence: true
+
   # Don't want to expire based on submitted, since if problem with OnPremConnector
   # The meter-database can exceed storage limits and crash all services
   index({end_time: 1}, {expire_after_seconds: 24.hours})

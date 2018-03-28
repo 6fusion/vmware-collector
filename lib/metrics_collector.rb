@@ -44,7 +44,18 @@ class MetricsCollector
         if reading.end_time
           collected_time = reading.end_time # Save this for faked readings below (in case it somehow inexplicably doesn't match time_to_query)
         end
-        @readings << reading
+        unless reading.valid?
+          if reading.machine_custom_id.blank?
+            machine = Machine.where(platform_id: reading.machine_platform_id).ne(uuid: nil).first
+            if machine
+              $logger.debug { "Updating reading at #{reading.start_time} for #{reading.machine_platform_id} to include with machine uuid #{machine.custom_id}" }
+              reading.machine_custom_id = machine.custom_id
+            else
+              $logger.warn { "Unable to assign uuid for reading at #{reading.start_time} for #{reading.machine_platform_id}" }
+            end
+          end
+        end
+        @readings << reading if reading.valid?
       end
     end
 

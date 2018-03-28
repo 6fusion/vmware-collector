@@ -31,12 +31,54 @@ class OnPremConnector
   def submit
     Mongoid::QueryCache.clear_cache # rethink if we start using this in other places
     submit_infrastructure_creates
-    submit_infrastructure_updates
     submit_machine_creates
-    submit_machine_updates
     submit_reading_creates
+
+    submit_infrastructure_updates
+    submit_machine_updates
+
+    # FIXME since deletes are updates, this is obsolete?
     submit_machine_disk_and_nic_deletes # Combined to go through documents with either or both changes once
     submit_machine_deletes
+  end
+
+  def submit_infrastructure_creates
+    infrastructure_creates = Infrastructure.where(record_status: 'created')
+    if infrastructure_creates.empty?
+      $logger.debug { 'No new infrastructures to submit to 6fusion Meter' }
+    else
+      @local_infrastructure_inventory = InfrastructureInventory.new(:name)
+      infrastructure_creates.each do |infrastructure|
+        infrastructure.valid? ?
+          infrastructure.post_to_api :
+          $logger.warn { "Not saving infrastructure #{infrastructure.name} to Meter: #{infrastructure.errors.full_messages}" }
+        @local_infrastructure_inventory[infrastructure.name] = infrastructure
+      end
+      @local_infrastructure_inventory.save
+      $logger.info { "Processing #{infrastructure_creates.size} new infrastructures for submission to 6fusion Meter" }
+    end
+  end
+
+  def submit_machine_creates(machine_creates = Machine.to_be_created)
+    if machine_creates.empty?
+      $logger.debug { 'No new machines to submit to 6fusion Meter' }
+    else
+      $logger.info { "Processing #{machine_creates.size} new machines for submission to the 6fusion Meter" }
+      machine_creates.each do |machine|
+        @thread_pool.post do
+          begin
+            # TODO catch resourcenotfound and flag infrastructure for create?
+            machine.valid? ?
+              machine.post_to_api :
+              $logger.warn { "Not saving machine #{machine.name} to Meter: #{machine.errors.full_messages}" }
+          rescue => e
+            Thread.main.raise e
+          end
+        end
+      end
+      @thread_pool.shutdown
+      @thread_pool.wait_for_termination
+    end
   end
 
   def submit_reading_creates
@@ -65,70 +107,28 @@ class OnPremConnector
     end
   end
 
-  def submit_infrastructure_creates
-    infrastructure_creates = Infrastructure.where(record_status: 'created')
-    if infrastructure_creates.empty?
-      $logger.debug { 'No new infrastructures to submit to 6fusion Meter' }
-    else
-      @local_infrastructure_inventory = InfrastructureInventory.new(:name)
-      infrastructure_creates.each do |infrastructure|
-        infrastructure.post_to_api
-        @local_infrastructure_inventory[infrastructure.name] = infrastructure
-      end
-      @local_infrastructure_inventory.save
-      $logger.info { "Processing #{infrastructure_creates.size} new infrastructures for submission to 6fusion Meter" }
-    end
-  end
-
-  def prep_and_post_reading(machine_reading)
-    machine_reading.post_to_api
-  end
-
-  def submit_machine_creates(machine_creates = Machine.to_be_created)
-    if machine_creates.empty?
-      $logger.debug { 'No new machines to submit to 6fusion Meter' }
-    else
-      $logger.info { "Processing #{machine_creates.size} new machines for submission to the 6fusion Meter" }
-      machine_creates.each do |created_machine|
-        @thread_pool.post do
-          begin
-            # catch resourcenotfound and flag infrastructure for create?
-            created_machine.post_to_api
-          rescue => e
-            Thread.main.raise e
-          end
-        end
-      end
-      @thread_pool.shutdown
-      @thread_pool.wait_for_termination
-    end
-  end
-
 
   def submit_machine_deletes
     machine_deletes = Machine.to_be_deleted
-    if !machine_deletes.empty?
-      $logger.info { "Processing #{machine_deletes.size} machines that require deletion from the 6fusion Meter" }
-    else
+    if machine_deletes.empty?
       $logger.debug { 'No machines require deletion from the 6fusion Meter' }
+    else
+      $logger.info { "Processing #{machine_deletes.size} machines that require deletion from the 6fusion Meter" }
     end
-
     # FIXME lots of room for optimization here. probably pull disks/nics out to top levle docs
     machine_deletes.each do |machine|
-      machine.disks.select{|d| d.status.eql?('active')}.each{|d|
-        d.record_status = 'to_be_deleted' }
-      machine.nics.select{|n| n.status.eql?('active')}.each{|n|
-        n.record_status = 'to_be_deleted' }
-      machine.save
-      submit_machine_disk_and_nic_deletes
-
-      machine.status = 'deleted'
-      @hyper_client.put_machine(machine.api_format)
-
-      if machine.record_status == 'deleted'
-        machine.save # Update status in mongo
+      @thread_pool.post do
+        machine.disks.select{|d| d.status.eql?('active')}.each{|d|
+          d.record_status = 'to_be_deleted' }
+        machine.nics.select{|n| n.status.eql?('active')}.each{|n|
+          n.record_status = 'to_be_deleted' }
+        machine.save
+        submit_machine_disk_and_nic_deletes
+        machine.submit_delete
       end
     end
+    @thread_pool.shutdown
+    @thread_pool.wait_for_termination
   end
 
   def submit_machine_updates
@@ -141,7 +141,9 @@ class OnPremConnector
     updated_machines.each do |machine|
       @thread_pool.post do
         begin
-          machine.patch_to_api
+          machine.valid? ?
+            machine.patch_to_api :
+            $logger.warn { "Not updating machine #{machine.name} in Meter: #{machine.errors.full_messages}" }
         rescue => e
           Thread.main.raise e
         end
@@ -152,32 +154,20 @@ class OnPremConnector
   end
 
   def submit_infrastructure_updates
-#    if InventoriedTimestamp.most_recent
-      updated_infrastructures = Infrastructure.where(record_status: 'updated') # (latest_inventory.inventory_at)
-      if !updated_infrastructures.empty?
-        $logger.info { "Processing #{updated_infrastructures.size} infrastructures that have configuration updates for 6fusion Meter" }
-      else
-        $logger.debug { 'No infrastructures require updating in the 6fusion Meter' }
-      end
-      updated_infrastructures.each do |updated_infrastructure|
-        begin
-          submitted_infrastructure = updated_infrastructure.submit_update
-          # Note: Successfully updated infrastructures record_status changes from "updated" to "verified_update"
-          if submitted_infrastructure.record_status == 'verified_update'
-            submitted_infrastructure.save # Save status in mongo
-          else
-            $logger.error { "Infrastructure #{submitted_infrastructure.name}/#{submitted_infrastructure.platform_id} not updated." }
-          end
-        rescue RestClient::ResourceNotFound => e
-          updated_infrastructure.submit_create
-        rescue RestClient::TooManyRequests => e
-          raise e
-        rescue StandardError => e
-          $logger.debug { e.backtrace.join("\n") }
-          $logger.error { "Error updating infrastructure: #{e.message}" }
-        end
-      end
-#    end
+    updated_infrastructures = Infrastructure.where(record_status: 'updated') # (latest_inventory.inventory_at)
+    if !updated_infrastructures.empty?
+      $logger.info { "Processing #{updated_infrastructures.size} infrastructures that have configuration updates for 6fusion Meter" }
+    else
+      $logger.debug { 'No infrastructures require updating in the 6fusion Meter' }
+    end
+    updated_infrastructures.each do |infrastructure|
+      # FIXME log
+      submitted_infrastructure = infrastructure.patch_to_api if infrastructure.valid?
+    end
+  end
+
+  def prep_and_post_reading(machine_reading)
+    machine_reading.post_to_api
   end
 
   # Control function, submit disks/nics

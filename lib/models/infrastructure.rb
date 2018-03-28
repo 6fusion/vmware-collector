@@ -53,20 +53,20 @@ class Infrastructure
     [:name, :platform_id]
   end
 
-  def submit_update
-    $logger.info "Updating infrastructure #{name} in 6fusion Meter API"
-    begin
-      response = $hyper_client.put(infrastructure_url(infrastructure_id: custom_id), api_format.merge(status: 'Active'))
-      response_json = response.json
-      if (response.present? && response.code == 200 && response_json['id'].present?)
-        self.record_status = 'verified_update'
-      end
-    rescue RuntimeError => e
-      $logger.error "Error updating infrastructure '#{name}' in the 6fusion Meter"
-      raise e
-    end
-    self
-  end
+  # def submit_update
+  #   $logger.info "Updating infrastructure #{name} in 6fusion Meter API"
+  #   begin
+  #     response = $hyper_client.patch(infrastructure_url(infrastructure_id: custom_id), api_format.merge(status: 'Active'))
+  #     response_json = response.json
+  #     if (response.present? && response.code == 200 && response_json['id'].present?)
+  #       self.record_status = 'verified_update'
+  #     end
+  #   rescue RuntimeError => e
+  #     $logger.error "Error updating infrastructure '#{name}' in the 6fusion Meter"
+  #     raise e
+  #   end
+  #   self
+  # end
 
   def attribute_map
     { name: :name }

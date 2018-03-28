@@ -199,31 +199,6 @@ class MachineInventory < MongoHash
 
   end
 
-  # Before each save, we want to make sure we're as current as possible on any remote IDs that
-  #  may have been filled in by the OnPrem Connector.
-  #!! performance test this. it may be good to iterate over all machines and see if any are
-  #  missing the remote_id first
-  # def refresh_remote_ids
-  #   aggregation = Machine.collection.aggregate( [ { '$match': { status:    { '$ne': 'deleted' },
-  #                                                               remote_id: { '$exists': true } } },
-  #                                                 { '$group': { '_id': { platform_id: '$platform_id',
-  #                                                                        remote_id: '$remote_id'  } } }
-  #                                               ] )
-  #   aggregation.each do |result_pair|
-  #     platform_id = result_pair['_id']['platform_id']
-  #     remote_id =   result_pair['_id']['remote_id']
-  #     begin
-  #       if ( machine = fetch(platform_id) )
-  #         machine.remote_id ||= remote_id
-  #       end
-  #     rescue KeyError => e
-  #       #this really shouldn't be possible
-  #       $logger.debug "Machine not found for platform ID: #{platform_id} when mapping remote ID"
-  #       $logger.debug e
-  #     end
-  #   end
-  # end
-
   def at_or_before(inventory_time)
     clear #!! optimal?
 
@@ -297,29 +272,3 @@ class InfrastructureInventory < MongoHash
 end
 
 
-# class PlatformRemoteIdInventory < MongoHash
-#   def initialize(key=:platform_key)
-#     super(PlatformRemoteId, key)
-#   end
-
-#   def []=(key,item)
-#     if item == nil
-#       $logger.debug "Cannot add PRID key for value item=nil to PlatformRemoteIdInventory"
-#       return
-#     end
-
-#     if ( has_key?(key) )
-#       previous = fetch(key)
-#        # In case somehow added PRID without remote_id
-#       unless previous.remote_id
-#         $logger.info "PRID with platform_key #{key} was missing remote_id. Updating with remote_id #{item.remote_id} now"
-#         $logger.debug "Item: #{previous.to_json}"
-#         @updates << previous
-#       end
-#     else
-#       $logger.info "Adding new PRID with platform_key: #{key} and remote_id: #{item.remote_id}"
-#       $logger.debug "Item: #{item.to_json}"
-#       @updates << item
-#     end
-#   end
-# end

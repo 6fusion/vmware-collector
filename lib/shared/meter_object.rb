@@ -43,10 +43,12 @@ module MeterObject
         self.save
       end
     rescue RestClient::ResourceNotFound => e
+      $logger.warn { "Patch of #{self.name} failed. Posting..." }
       self.post_to_api
     rescue RestClient::ExceptionWithResponse => e
       if e.response.code == 404
-      self.post_to_api
+        $logger.warn { "Patch of #{self.name} failed (404). Posting..." }
+        self.post_to_api
       end
     rescue StandardError => e
       $logger.error "Error updating #{self.class} #{self.name}/#{self.custom_id} in the 6fusion Meter"

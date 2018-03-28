@@ -16,6 +16,7 @@ class HyperClient
   # HEAD
   def head(item)
     case
+    when item.custom_id.blank? then nil
     when item.is_a?(Infrastructure) then head_infrastructure(item.custom_id)
     when item.is_a?(Machine) then head_machine(item.custom_id)
     end
@@ -102,7 +103,6 @@ class HyperClient
   def patch_machine(item)
     do_patch("#{api_endpoint}/machines/#{item.custom_id}", item.api_format)
   end
-
   # put: misnamed a bit...
   def put_disk(disk_json)
     do_patch("#{api_endpoint}/disks/#{disk_json[:custom_id]}", disk_json)
@@ -110,6 +110,25 @@ class HyperClient
   def put_nic(nic_json)
     do_patch("#{api_endpoint}/nics/#{nic_json[:custom_id]}", nic_json)
   end
+  def do_patch(url, headers={})
+    first_attempt = true
+    begin
+      merged_headers = headers.merge(access_token: oauth_token)
+      $logger.debug "Putting: #{url}, params: #{merged_headers}"
+     RestClient.patch(url, merged_headers.to_json, content_type: :json, accept: :json)
+    rescue RestClient::RequestTimeout => e
+      if first_attempt
+        first_attempt = false
+        retry
+      end
+    rescue StandardError => e
+      $logger.error "#{e.message} for put request to #{url}"
+      $logger.debug merged_headers.to_json
+      $logger.debug e.backtrace[0..15].join("\n")
+      raise e
+    end
+  end
+
 
   def decode_url(url)
     params = ''
@@ -140,33 +159,6 @@ class HyperClient
       $logger.error e.inspect
       $logger.debug merged_headers.to_json
       $logger.debug e
-      raise e
-    end
-  end
-
-
-  def do_patch(url, headers = {})
-    first_attempt = true
-    begin
-      merged_headers = headers.merge(access_token: oauth_token)
-      $logger.debug "Putting: #{url}, params: #{merged_headers}"
-     RestClient.patch(url, merged_headers.to_json, content_type: :json, accept: :json)
-    rescue RestClient::Unauthorized => e
-      if first_attempt
-        first_attempt = false
-        reset_token
-        retry
-      end
-    rescue RestClient::RequestTimeout => e
-      if first_attempt
-        first_attempt = false
-        retry
-      end
-    rescue StandardError => e
-      $logger.error "#{e.message} for put request to #{url}"
-      $logger.error e.inspect
-      $logger.debug merged_headers.to_json
-      $logger.debug e.backtrace.join("\n")
       raise e
     end
   end

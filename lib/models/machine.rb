@@ -13,9 +13,7 @@ class Machine
   include GlobalConfiguration
   include MeterObject
 
-  field :remote_id,     type: String
   field :platform_id,   type: String
-  field :moref,         type: String
   field :record_status, type: String
   field :inventory_at,  type: DateTime
   field :name,          type: String
@@ -188,15 +186,17 @@ class Machine
   end
 
   def submit_delete(machine_endpoint)
-    $logger.info "Deleting machine #{name} from The 6fusion Meter"
-    begin
-      response = $hyper_client.put(machine_endpoint, api_format)
-      self.record_status = 'deleted' if (response.code == 200 || response.code == 404)
-    rescue StandardError => e
-      $logger.error "Error deleting machine '#{name} from The 6fusion Meter"
-      $logger.debug e.backtrace.join("\n")
-      raise e
-    end
+    $logger.info "Deleting machine #{name}/#{custom_id} from The 6fusion Meter"
+    self.status = 'deleted'
+    patch_to_api
+    # begin
+    #   response = $hyper_client.put(machine_endpoint, api_format)
+    #   self.record_status = 'deleted' if (response.code == 200 || response.code == 404)
+    # rescue StandardError => e
+    #   $logger.error "Error deleting machine '#{name} from The 6fusion Meter"
+    #   $logger.debug e.backtrace.join("\n")
+    #   raise e
+    # end
   end
 
 
