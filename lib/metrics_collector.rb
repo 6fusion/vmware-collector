@@ -51,7 +51,7 @@ class MetricsCollector
               $logger.debug { "Updating reading at #{reading.start_time} for #{reading.machine_platform_id} to include with machine uuid #{machine.custom_id}" }
               reading.machine_custom_id = machine.custom_id
             else
-              $logger.warn { "Unable to assign uuid for reading at #{reading.start_time} for #{reading.machine_platform_id}" }
+              $logger.warn { "Unable to assign uuid for reading at #{reading.start_time} for #{reading.machine_platform_id}. Reading will be skipped" }
             end
           end
         end

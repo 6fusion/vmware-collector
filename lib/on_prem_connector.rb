@@ -92,7 +92,7 @@ class OnPremConnector
       Reading.where(record_status: 'created').no_timeout.each do |reading|
         @thread_pool.post do
           begin
-            reading.post_to_api(hyperclient)
+            reading.post_to_api(hyperclient) if reading.valid? # a bit redundant to the logic in the metrics collector...
           rescue StandardError => e
             $logger.error { "Raising #{e.class}: #{e.message}" }
             # TODO: This doesn't seem to operate as desired; this seems to cause a jump to the "line" after the end of the "thread_pool do" code

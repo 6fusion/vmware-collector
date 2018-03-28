@@ -77,6 +77,11 @@ objects:
           command:
           - bin/meter-connector.rb
           env:
+          - name: VCENTER_DESCRIPTOR
+            valueFrom:
+              secretKeyRef:
+                key: vcenter-descriptor
+                name: vcenter-secret
           - name: METER_API_PROTOCOL
             valueFrom:
               secretKeyRef:
@@ -228,6 +233,11 @@ objects:
           env:
           - name: CONTAINER
             value: metrics
+          - name: VCENTER_DESCRIPTOR
+            valueFrom:
+              secretKeyRef:
+                key: vcenter-descriptor
+                name: vcenter-secret
           - name: VSPHERE_HOST
             valueFrom:
               secretKeyRef:
