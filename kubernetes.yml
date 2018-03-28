@@ -75,7 +75,7 @@ objects:
           image: 6fusion/vmware-collector:alpha
           imagePullPolicy: IfNotPresent
           command:
-          - bin/meter-connector.rb
+          - bin/meter-connector
           env:
           - name: VCENTER_DESCRIPTOR
             valueFrom:
@@ -131,7 +131,7 @@ objects:
           image: 6fusion/vmware-collector:alpha
           imagePullPolicy: IfNotPresent
           command:
-          - bin/inventory-collector.rb
+          - bin/inventory-collector
           env:
           - name: CONTAINER
             value: inventory
@@ -229,7 +229,7 @@ objects:
           image: 6fusion/vmware-collector:alpha
           imagePullPolicy: IfNotPresent
           command:
-          - bin/metrics-collector.rb
+          - bin/metrics-collector
           env:
           - name: CONTAINER
             value: metrics
