@@ -47,6 +47,14 @@ objects:
         - name: mongodb
           image: mongo:3.4.6
           imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "'db.serverStatus()'"
+            initialDelaySeconds: 300
+            periodSeconds: 300
           volumeMounts:
           - mountPath: /data/db
             name: mongodb
@@ -76,6 +84,12 @@ objects:
           imagePullPolicy: IfNotPresent
           command:
           - bin/meter-connector
+          livenessProbe:
+            exec:
+              command:
+                - /app/bin/health-check
+            initialDelaySeconds: 300
+            periodSeconds: 300
           env:
           - name: VCENTER_DESCRIPTOR
             valueFrom:
@@ -132,6 +146,12 @@ objects:
           imagePullPolicy: IfNotPresent
           command:
           - bin/inventory-collector
+          livenessProbe:
+            exec:
+              command:
+                - /app/bin/health-check
+            initialDelaySeconds: 300
+            periodSeconds: 300
           env:
           - name: CONTAINER
             value: inventory
@@ -228,6 +248,12 @@ objects:
         - name: 6fusion-metrics-collector
           image: 6fusion/vmware-collector:alpha
           imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - /app/bin/health-check
+            initialDelaySeconds: 300
+            periodSeconds: 300
           command:
           - bin/metrics-collector
           env:

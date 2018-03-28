@@ -20,6 +20,7 @@ $logger.info 'API syncronization scheduled to run every 30 seconds'
 on_prem_connector = OnPremConnector.new
 loop do
   on_prem_connector.submit
+  File.write("/tmp/heartbeat", "")  # for kubernetes health check
   sleep 30
 end
 

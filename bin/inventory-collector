@@ -42,6 +42,7 @@ scheduler_5m.cron '*/5 * * * *' do |job|
   #  we could blow away that inventory and re-collect
   InventoriedTimestamp.create(inventory_at: collection_time, record_status: 'inventoried')
 
+  File.write("/tmp/heartbeat", "")  # for kubernetes health check
 end
 
 scheduler_5m.join

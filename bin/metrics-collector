@@ -7,13 +7,9 @@ collector = MetricsCollector.new
 loop do
   InventoriedTimestamp.ready_for_metering.each do |it|
     it.update_attribute(:record_status, 'queued_for_metering')
-    begin
-      Timeout.timeout(300){  # TODO move to health check
-        collector.run(it) }
-    rescue Timeout::Error
-      $logger.error { "Collecting metrics for machines at time #{it.inventory_at} timed out." }
-    end
+    collector.run(it)
   end
+  File.write("/tmp/heartbeat", "")  # for kubernetes health check
   sleep 30
 end
 
