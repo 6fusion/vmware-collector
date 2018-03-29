@@ -47,6 +47,11 @@ objects:
         - name: mongodb
           image: mongo:3.4.6
           imagePullPolicy: IfNotPresent
+          args:
+          - --wiredTigerCacheSizeGB=0.5
+          resources:
+            limits:
+              memory: "1Gi"
           livenessProbe:
             exec:
               command:
