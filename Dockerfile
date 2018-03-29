@@ -13,8 +13,8 @@ LABEL vendor="6fusion USA, Inc."  \
       commit="$GIT_COMMIT" \
       url="https://6fusion.com"
 
-WORKDIR /usr/src/app
-COPY . /usr/src/app
+WORKDIR /app
+COPY . /app
 
 RUN apk update && \
   apk upgrade && \
