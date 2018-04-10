@@ -92,14 +92,21 @@ class OnPremConnector
       Reading.where(record_status: 'created').no_timeout.each do |reading|
         @thread_pool.post do
           begin
-            reading.post_to_api(hyperclient) if reading.valid? # a bit redundant to the logic in the metrics collector...
+            reading.valid? ?
+              reading.post_to_api(hyperclient) :
+              $logger.warn { "Skipping sample for #{reading.machine_platform_id}: #{reading.errors.full_messages}" }
           rescue StandardError => e
             $logger.error { "Raising #{e.class}: #{e.message}" }
+            if e.message.match(/unable to find/i)
+              $logger.info { "Attempting to create missing resources in Meter API" }
+              Machine.find({uuid: reading.machine_custom_id})&.post_to_api
+            end
             # TODO: This doesn't seem to operate as desired; this seems to cause a jump to the "line" after the end of the "thread_pool do" code
             Thread.main.raise e
           end
         end
       end
+
       @thread_pool.shutdown
       @thread_pool.wait_for_termination
 
@@ -160,10 +167,9 @@ class OnPremConnector
     else
       $logger.debug { 'No infrastructures require updating in the 6fusion Meter' }
     end
-    updated_infrastructures.each do |infrastructure|
+    updated_infrastructures.each {|infrastructure|
       # FIXME log
-      submitted_infrastructure = infrastructure.patch_to_api if infrastructure.valid?
-    end
+      infrastructure.patch_to_api if infrastructure.valid? }
   end
 
   def prep_and_post_reading(machine_reading)
@@ -185,7 +191,7 @@ class OnPremConnector
         begin
           @hyper_client.put_disk(disk.api_format)
           disk.update_attribute(:record_status, 'verified_delete')
-        rescue RestClient::ResourceNotFound => e
+        rescue RestClient::ResourceNotFound => _
           disk.update_attribute(:record_status, 'verified_delete')
         end
       end
@@ -196,7 +202,7 @@ class OnPremConnector
         begin
           @hyper_client.put_nic(nic.api_format)
           nic.update_attribute(:record_status, 'verified_delete')
-        rescue RestClient::ResourceNotFound => e
+        rescue RestClient::ResourceNotFound => _
           nic.update_attribute(:record_status, 'verified_delete')
         end
       end
