@@ -116,7 +116,7 @@ objects:
               secretKeyRef:
                 key: api-port
                 name: on-prem-secret
-          - name: ORGANIZATION_ID
+          - name: ON_PREM_ORGANIZATION_ID
             valueFrom:
               secretKeyRef:
                 key: organization-id
