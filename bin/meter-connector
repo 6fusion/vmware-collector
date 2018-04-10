@@ -9,6 +9,8 @@ max_threads = Integer(ENV['METER_API_THREADS'] || 10)
 thread_pool = Concurrent::ThreadPoolExecutor.new(min_threads: 1, max_threads: max_threads, max_queue: max_threads * 2, fallback_policy: :caller_runs)
 Infrastructure.each {|infrastructure|
   thread_pool.post { infrastructure.post_to_api } }
+thread_pool.shutdown
+thread_pool.wait_for_termination
 Machine.distinct(:uuid).each do |uuid|
   machine = Machine.find_by(uuid: uuid)
   thread_pool.post { machine.post_to_api }
